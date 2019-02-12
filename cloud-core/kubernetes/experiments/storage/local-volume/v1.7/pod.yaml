@@ -1,0 +1,15 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: example-pod
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.13
+      volumeMounts:
+      - mountPath: /data
+        name: local-volume
+  volumes:
+    - name: local-volume
+      persistentVolumeClaim:
+        claimName: example-local-claim

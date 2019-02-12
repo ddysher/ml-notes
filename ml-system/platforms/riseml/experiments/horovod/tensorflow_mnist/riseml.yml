@@ -1,0 +1,14 @@
+project: horovod-tensorflow-mnist
+train:
+  framework: tensorflow
+  tensorflow:
+    version: 1.5.0
+    tensorboard: false
+    horovod:
+      workers: 2
+  resources:
+    gpus: 0
+    cpus: 0.5
+    mem: 512
+  run:
+  - python tensorflow_mnist.py

@@ -1,0 +1,22 @@
+# Similar to deployment, but add a new environment.
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: simple-backend
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: simple-backend
+    spec:
+      containers:
+      - name: simple-backend
+        image: ddysher/simple-backend
+        ports:
+          - containerPort: 80
+        env:
+          - name: ADDRESS
+            value: https://google.com
+          - name: ANOTHER_ADDRESS
+            value: https://facebook.com

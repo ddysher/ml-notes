@@ -1,0 +1,12 @@
+model_config_list: {
+  config: {
+    name: "model1",
+    base_path: "/tmp/simple_model",
+    model_platform: "tensorflow"
+  },
+  config: {
+    name: "model2",
+    base_path: "/tmp/another_model",
+    model_platform: "tensorflow"
+  }
+}

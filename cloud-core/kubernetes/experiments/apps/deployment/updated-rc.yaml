@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: simple-rc
+spec:
+  replicas: 1
+  selector:
+    environment: prod
+  template:
+    metadata:
+      labels:
+        environment: prod
+    spec:
+      containers:
+      - name: created-from-rc
+        image: ddysher/simple-backend
+        env:
+          - name: ADDRESS
+            value: https://google.com
+          - name: ANOTHER_ADDRESS
+            value: https://facebook.com
+      restartPolicy: Always

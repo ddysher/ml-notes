@@ -1,0 +1,30 @@
+project: horovod-cifar10
+train:
+  framework: tensorflow
+  tensorflow:
+    version: 1.5.0
+    tensorboard: false
+    horovod:
+      workers: 2
+  install:
+    - apt-get update && apt-get install -y git
+    - pip install -r requirements.txt
+  resources:
+    gpus: 1
+    cpus: 2
+    mem: 1024
+  parameters:
+    lr:
+      - 0.0001
+      - 0.001
+    lr-decay:
+      - 1e-6
+      - 1e-7
+    epochs:
+      range:
+        min: 2
+        max: 6
+        step: 1
+  concurrency: 2
+  run:
+  - python cifar10.py /data/images --epochs {{epochs}} --lr {{lr}} --lr-decay {{lr-decay}}

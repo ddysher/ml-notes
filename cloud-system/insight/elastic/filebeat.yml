@@ -1,0 +1,10 @@
+# A very simple config that reads from log file and forward to stdout.
+
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /tmp/beats/*.log
+
+output.console:
+  pretty: true

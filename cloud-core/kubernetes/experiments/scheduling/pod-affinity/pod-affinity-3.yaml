@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: with-pod-affinity-3
+spec:
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: environment
+            operator: In
+            values:
+            - prod
+            - test
+        topologyKey: kubernetes.io/hostname
+  containers:
+  - name: with-pod-affinity-3
+    image: nginx:1.13

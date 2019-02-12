@@ -1,0 +1,14 @@
+{
+  "apiVersion": "v1beta1",
+  "id": "127.0.0.1",
+  "kind": "Minion",
+  "resources": {
+    "capacity": {
+      "cpu": 1000,
+      "memory": 3221225472
+    }
+  },
+  "labels": {
+    "name": "new-minion"
+  }
+}

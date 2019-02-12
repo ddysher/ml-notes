@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubernetes-downwardapi-volume-example
+spec:
+  containers:
+  - name: client-container
+    image: nginx:1.13
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+      limits:
+        memory: "128Mi"
+        cpu: "500m"
+    volumeMounts:
+    - name: podinfo
+      mountPath: /etc/downwards
+      readOnly: false
+  volumes:
+  - name: podinfo
+    downwardAPI:
+      items:
+      - path: "cpu_limit"
+        resourceFieldRef:
+          containerName: client-container
+          resource: limits.cpu
+          divisor: "1m"
+      - path: "memory_limit"
+        resourceFieldRef:
+          containerName: client-container
+          resource: limits.memory

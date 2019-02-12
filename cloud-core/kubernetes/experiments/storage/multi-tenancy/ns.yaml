@@ -1,0 +1,9 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: tenant-1
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: tenant-2

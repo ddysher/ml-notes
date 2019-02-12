@@ -1,0 +1,25 @@
+authorization {
+  ADMIN = {
+    publish = ">"
+    subscribe = ">"
+  }
+  REQUESTOR = {
+    publish = ["req.foo", "req.bar"]
+    subscribe = "_INBOX.*"
+  }
+  DEFAULT_PERMISSIONS = {
+    publish = "SANDBOX.*"
+    subscribe = ["PUBLIC.>", "_INBOX.>"]
+  }
+
+  # Use variable in config file.
+  PASS: abcdefghijklmnopqrstuvwxwz0123456789
+  BCRYPT: $2a$11$9yy6LvHfnurHtjSaNkK3i.ZCQwTBHleP276GKzPklQxZ.MjeLRBFu
+
+  users = [
+    {user: alice, password: pwdalice, permissions: $ADMIN}
+    {user: bob,   password: pwdbob,   permissions: $REQUESTOR}
+    {user: joe,   password: $PASS}
+    {user: derek, password: $BCRYPT,  permissions: $ADMIN}
+  ]
+}

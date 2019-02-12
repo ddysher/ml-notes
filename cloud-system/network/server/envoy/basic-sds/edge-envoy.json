@@ -1,0 +1,69 @@
+{
+  "listeners": [
+    {
+      "address": "tcp://0.0.0.0:10000",
+      "filters": [
+        {
+          "type": "read",
+          "name": "http_connection_manager",
+          "config": {
+            "codec_type": "auto",
+            "stat_prefix": "ingress_http",
+            "route_config": {
+              "virtual_hosts": [
+                {
+                  "name": "backend",
+                  "domains": ["*"],
+                  "routes": [
+                    {
+                      "timeout_ms": 0,
+                      "prefix": "/lucky",
+                      "prefix_rewrite": "/",
+                      "cluster": "lucky"
+                    }
+                  ]
+                }
+              ]
+            },
+            "filters": [
+              {
+                "type": "decoder",
+                "name": "router",
+                "config": {}
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "admin": {
+    "access_log_path": "/dev/null",
+    "address": "tcp://127.0.0.1:8001"
+  },
+  "cluster_manager": {
+    "sds": {
+      "cluster": {
+        "name": "lucky-sds",
+        "connect_timeout_ms": 250,
+        "type": "strict_dns",
+        "lb_type": "round_robin",
+        "hosts": [
+          {
+            "url": "tcp://localhost:5000"
+          }
+        ]
+      },
+      "refresh_delay_ms": 15000
+    },
+    "clusters": [
+      {
+        "name": "lucky",
+        "connect_timeout_ms": 250,
+        "type": "sds",
+        "service_name": "lucky",
+        "lb_type": "round_robin"
+      }
+    ]
+  }
+}

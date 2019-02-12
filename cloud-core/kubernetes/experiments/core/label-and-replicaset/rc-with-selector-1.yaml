@@ -1,0 +1,20 @@
+# Two take aways:
+# - The rc will match pod-with-label-2, so it won't create new pods;
+# - The rc matches pod-with-label2 means that rc won't match all labels.
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: rc-with-selector-1
+spec:
+  replicas: 1
+  selector:
+    environment: prod
+  template:
+    metadata:
+      labels:
+        environment: prod
+    spec:
+      containers:
+      - name: created-from-rc
+        image: ddysher/simple-backend
+      restartPolicy: Always

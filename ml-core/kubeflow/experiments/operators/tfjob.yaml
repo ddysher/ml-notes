@@ -1,0 +1,15 @@
+ apiVersion: "kubeflow.org/v1alpha2"
+ kind: "TFJob"
+ metadata:
+   name: "tf-saved-model"
+ spec:
+   tfReplicaSpecs:
+     Worker:
+       replicas: 1
+       restartPolicy: Never
+       template:
+         spec:
+           containers:
+             - name: tensorflow
+               image: kubeflow/tf-saved-model:v0.1
+               args: ["/tmp/export"]

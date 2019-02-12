@@ -1,0 +1,16 @@
+{
+  "pipeline": {
+    "name": "inspect"
+  },
+  "input": {
+    "atom": {
+      "glob": "/*",
+      "branch": "master",
+      "repo": "images"
+    }
+  },
+  "transform": {
+    "cmd": [ "python3", "/inspect.py" ],
+    "image": "pachyderm/opencv:inspect"
+  }
+}

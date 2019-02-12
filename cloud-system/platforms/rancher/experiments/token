@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    fleet.cattle.io/managed: "true"
+  name: fleet-system
+
+---
+apiVersion: v1
+data:
+  kubeconfig: YXBpVmVyc2lvbjogdjEKY2x1c3RlcnM6Ci0gY2x1c3RlcjoKICAgIGNlcnRpZmljYXRlLWF1dGhvcml0eS1kYXRhOiBMUzB0TFMxQ1JVZEpUaUJEUlZKVVNVWkpRMEZVUlMwdExTMHRDazFKU1VNMWVrTkRRV01yWjBGM1NVSkJaMGxDUVZSQlRrSm5hM0ZvYTJsSE9YY3dRa0ZSYzBaQlJFRldUVkpOZDBWUldVUldVVkZFUlhkd2RHRlhOWEFLWVROV2FWcFZUa0pOUWpSWVJGUkpkMDFFVVhkT2FrRjRUa1JqZUU0eGIxaEVWRTEzVFVSUmQwNVVRWGhPUkdONFRqRnZkMFpVUlZSTlFrVkhRVEZWUlFwQmVFMUxZbGRzZFdGWGRERlpiVlpFVVZSRFEwRlRTWGRFVVZsS1MyOWFTV2gyWTA1QlVVVkNRbEZCUkdkblJWQkJSRU5EUVZGdlEyZG5SVUpCVEdsUENtcEVXRUZyUkdOU2VWcFFWeXRRV2pOcllqVXdSbVV4VlhOMlNVNXNkRXRoTkVwWU1qVXphblJKWWxSdE9GcDBkVmxwSzBWUGQwOXpVbVlyTWtSdlpVVUthVFpRZGpSa09EVmhTUzh4TW14NVl6RlBSWFUzUWtaMU1YbHdlVmQwTm5CM1RWWmlaM28zYkM5S1luVlRZa2xLZDBOdmJtaDZiVm95WkhNclFUQnNZd3BQY0VKdGFIQXhXV05FVFc5bUsyWmpNbUZQUWtoV1ZIWXdTVWRVYUhwclQycDRXSHBzWm5rNWVFOVVLM29yWlRsaFpVSlFTRmw0TTIxR2NEWmthVzE1Q2swMVRYTTRaV1pVYXpCWWVFNXJjM2RPUWk5aVFXdExjemRyYmpKYU9GWmlNMjQyTVdOeU5FdHlTVVJPVm1OdU15OTROVFl4VTNCR1QwRjBkV3B0ZVhNS1MzRnFURFI0ZWpaMmRWaGFURUZJYnpJMFlWQlJlVTkwS3pSMFFXaExNMFpyTTJac2RsTldjMUJVUWtWcWFIb3dUalIwUldodmJ6bG9PWFoyVjJRNGFBcEtaMUpFSzJOWGNWbEtlRGxJUTBsa01UYzRRMEYzUlVGQllVNURUVVZCZDBSbldVUldVakJRUVZGSUwwSkJVVVJCWjB0clRVSXdSMEV4VldSS1VWRlhDazFDVVVkRFEzTkhRVkZWUmtKM1RVTkNaMmR5UW1kRlJrSlJZMFJCVkVGUVFtZE9Wa2hTVFVKQlpqaEZRbFJCUkVGUlNDOU5RVEJIUTFOeFIxTkpZak1LUkZGRlFrTjNWVUZCTkVsQ1FWRkRiM1EzZEU1RFRqTm5iRlJ2VmxGS2NYVjNjMjlMV2t4VFFXSjFMemg0WkUxa1ozWm9UalJvVUhoSVJ6bEpMelo0YndwdFVWSnRZM1JyYVU5VFJXZExhRzl1YTJkUE1FMWhSMkZhTTJ4b1dreDZZMk0yTjBKUVRuTnpiMjlxSzBaVVpVaE1UMDVEVG5OMldXZEljSFpPZDJwaENraGFVMEZyTUd4SVJEWm5Wa3hRVjFsWWIxWXhPVVYxTWpoRE1WWm9UVEJLU214SFRXNVJTbWx6WTJkUFdubHhXV2hRTkdka0szVnhLMEp3YlZwNlJYWUtTamhFWWxWdE5FSllaRTgwTTNsdGVqZ3dXbE5CVTFOUVYwOWFOVFJHVDNkMFJYWkNWVUZ2T1hkNWRHMVFlVFpxYUVoelVreGxRV2c1ZVZOc1FWcERPUW8xY0VSQ2VFTkhUbWxGZUhKVVkwWTRSMlYyUWpSc0t6QmFkM2RWYW5aeFdub3lRemR5YVM5RmEyZEZhVmR3ZFZkNGFDOVRNMnN2Y0hCWE5sWTBZa3Q2Q214bU1VdEdlVFZFUWtKTFpqRlRiamw2VFRCYU5HaERlbFF2YjFvMlRIZzNUM2h6WWdvdExTMHRMVVZPUkNCRFJWSlVTVVpKUTBGVVJTMHRMUzB0Q2c9PQogICAgc2VydmVyOiBodHRwczovLzE5Mi4xNjguOTkuMTA3Ojg0NDMKICBuYW1lOiBjbHVzdGVyCmNvbnRleHRzOgotIGNvbnRleHQ6CiAgICBjbHVzdGVyOiBjbHVzdGVyCiAgICBuYW1lc3BhY2U6IGRlZmF1bHQtZGVmYXVsdC1ncm91cAogICAgdXNlcjogdXNlcgogIG5hbWU6IGRlZmF1bHQKY3VycmVudC1jb250ZXh0OiBkZWZhdWx0CmtpbmQ6IENvbmZpZwpwcmVmZXJlbmNlczoge30KdXNlcnM6Ci0gbmFtZTogdXNlcgogIHVzZXI6CiAgICB0b2tlbjogZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNkluWkljbEJhT0hVeWRsZG5Ra2xYVVZoWU1XMUZWV3BPY0cxcVZXUnphRzVYTWpVNFdtSmxhbEZWVm5jaWZRLmV5SnBjM01pT2lKcmRXSmxjbTVsZEdWekwzTmxjblpwWTJWaFkyTnZkVzUwSWl3aWEzVmlaWEp1WlhSbGN5NXBieTl6WlhKMmFXTmxZV05qYjNWdWRDOXVZVzFsYzNCaFkyVWlPaUprWldaaGRXeDBJaXdpYTNWaVpYSnVaWFJsY3k1cGJ5OXpaWEoyYVdObFlXTmpiM1Z1ZEM5elpXTnlaWFF1Ym1GdFpTSTZJblJ2YTJWdUxUVnpibVIzTFhSdmEyVnVMWFJ2YTJWdUxXdGtNbmR3SWl3aWEzVmlaWEp1WlhSbGN5NXBieTl6WlhKMmFXTmxZV05qYjNWdWRDOXpaWEoyYVdObExXRmpZMjkxYm5RdWJtRnRaU0k2SW5SdmEyVnVMVFZ6Ym1SM0xYUnZhMlZ1SWl3aWEzVmlaWEp1WlhSbGN5NXBieTl6WlhKMmFXTmxZV05qYjNWdWRDOXpaWEoyYVdObExXRmpZMjkxYm5RdWRXbGtJam9pTldJd1lUVTBaRFl0TkRnNU9DMDBOREZrTFdJNFlUa3RZMk0zTlRNeU4yUm1aVE5sSWl3aWMzVmlJam9pYzNsemRHVnRPbk5sY25acFkyVmhZMk52ZFc1ME9tUmxabUYxYkhRNmRHOXJaVzR0TlhOdVpIY3RkRzlyWlc0aWZRLnM0TkNtZ1Y1aThXMVFldnloa1NQdE55VzJYMFBGdWh4MzF6elhHT1gwZkZxeDBIeExPMVR5VGtleVR2cjVtMlNrQWtIWjJEUTJiSVJVZFRiSDV4N3ZPR3ktbGl4RS1rYTROcHlxLTdmWXFMbVQzRi1QanRpbDAwNGpXQWN0dkpFdUZDeThEY2FGSjRIbE1pZVJrem5vY0VYYklPeXFINmtucTZXWlBBV01MX3VLNXRNYzdfN2x2RVpkOGV0YVdFZVJCbkN2dmtwaWZTMFZ4U1FESy01ODJXMFBjLUNPZVlOWmlhVnRIN2JQM1kyV0k2VUdrRHZ1WDlmZndGOU5vc04wRHA3ekhsMUYzYllCT2s5TVNKTDJuTzMwMzludkExTE1nS0ZERTV0T2Z2LVRjNU1qUWlxZWszTGtfNC00UjBoUWpvNVpuMFNGTjB0clNMSllKeWpNdwo=
+kind: Secret
+metadata:
+  annotations:
+    fleet.cattle.io/bootstrap-token: "true"
+  name: fleet-agent
+  namespace: fleet-system
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-agent
+  namespace: fleet-system
+spec:
+  selector:
+    matchLabels:
+      app: fleet-agent
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: fleet-agent
+    spec:
+      containers:
+      - env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: rancher/fleet-agent:v0.1.0
+        name: fleet-agent
+        resources: {}
+      serviceAccountName: fleet-agent
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fleet-agent
+  namespace: fleet-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fleet-system-fleet-agent-role
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fleet-system-fleet-agent-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fleet-system-fleet-agent-role
+subjects:
+- kind: ServiceAccount
+  name: fleet-agent
+  namespace: fleet-system

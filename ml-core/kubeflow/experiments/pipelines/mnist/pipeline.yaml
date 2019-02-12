@@ -1,0 +1,231 @@
+"apiVersion": |-
+  argoproj.io/v1alpha1
+"kind": |-
+  Workflow
+"metadata":
+  "annotations":
+    "pipelines.kubeflow.org/pipeline_spec": |-
+      {"description": "A pipeline to train and serve the MNIST example.", "inputs": [{"default": "gs://your-bucket/export", "name": "model_export_dir"}, {"default": "200", "name": "train_steps"}, {"default": "0.01", "name": "learning_rate"}, {"default": "100", "name": "batch_size"}, {"default": "", "name": "pvc_name"}], "name": "MNIST"}
+  "generateName": |-
+    mnist-
+"spec":
+  "arguments":
+    "parameters":
+    - "name": |-
+        model_export_dir
+      "value": |-
+        gs://your-bucket/export
+    - "name": |-
+        train_steps
+      "value": |-
+        200
+    - "name": |-
+        learning_rate
+      "value": |-
+        0.01
+    - "name": |-
+        batch_size
+      "value": |-
+        100
+    - "name": |-
+        pvc_name
+      "value": ""
+  "entrypoint": |-
+    mnist
+  "serviceAccountName": |-
+    pipeline-runner
+  "templates":
+  - "dag":
+      "tasks":
+      - "arguments":
+          "parameters":
+          - "name": |-
+              model_export_dir
+            "value": |-
+              {{inputs.parameters.model_export_dir}}
+        "dependencies":
+        - |-
+          train
+        "name": |-
+          serve
+        "template": |-
+          serve
+      - "arguments":
+          "parameters":
+          - "name": |-
+              batch_size
+            "value": |-
+              {{inputs.parameters.batch_size}}
+          - "name": |-
+              learning_rate
+            "value": |-
+              {{inputs.parameters.learning_rate}}
+          - "name": |-
+              model_export_dir
+            "value": |-
+              {{inputs.parameters.model_export_dir}}
+          - "name": |-
+              train_steps
+            "value": |-
+              {{inputs.parameters.train_steps}}
+        "name": |-
+          train
+        "template": |-
+          train
+      - "dependencies":
+        - |-
+          serve
+        "name": |-
+          web-ui
+        "template": |-
+          web-ui
+    "inputs":
+      "parameters":
+      - "name": |-
+          batch_size
+      - "name": |-
+          learning_rate
+      - "name": |-
+          model_export_dir
+      - "name": |-
+          train_steps
+    "name": |-
+      mnist
+  - "container":
+      "args":
+      - |-
+        --model-export-path
+      - |-
+        {{inputs.parameters.model_export_dir}}
+      - |-
+        --server-name
+      - |-
+        mnist-service
+      "env":
+      - "name": |-
+          GOOGLE_APPLICATION_CREDENTIALS
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      - "name": |-
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      "image": |-
+        gcr.io/ml-pipeline/ml-pipeline-kubeflow-deployer:7775692adf28d6f79098e76e839986c9ee55dd61
+      "volumeMounts":
+      - "mountPath": |-
+          /secret/gcp-credentials
+        "name": |-
+          gcp-credentials-user-gcp-sa
+    "inputs":
+      "parameters":
+      - "name": |-
+          model_export_dir
+    "name": |-
+      serve
+    "volumes":
+    - "name": |-
+        gcp-credentials-user-gcp-sa
+      "secret":
+        "secretName": |-
+          user-gcp-sa
+  - "container":
+      "args":
+      - |-
+        /opt/model.py
+      - |-
+        --tf-export-dir
+      - |-
+        {{inputs.parameters.model_export_dir}}
+      - |-
+        --tf-train-steps
+      - |-
+        {{inputs.parameters.train_steps}}
+      - |-
+        --tf-batch-size
+      - |-
+        {{inputs.parameters.batch_size}}
+      - |-
+        --tf-learning-rate
+      - |-
+        {{inputs.parameters.learning_rate}}
+      "env":
+      - "name": |-
+          GOOGLE_APPLICATION_CREDENTIALS
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      - "name": |-
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      "image": |-
+        gcr.io/kubeflow-examples/mnist/model:v20190304-v0.2-176-g15d997b
+      "volumeMounts":
+      - "mountPath": |-
+          /secret/gcp-credentials
+        "name": |-
+          gcp-credentials-user-gcp-sa
+    "inputs":
+      "parameters":
+      - "name": |-
+          batch_size
+      - "name": |-
+          learning_rate
+      - "name": |-
+          model_export_dir
+      - "name": |-
+          train_steps
+    "name": |-
+      train
+    "volumes":
+    - "name": |-
+        gcp-credentials-user-gcp-sa
+      "secret":
+        "secretName": |-
+          user-gcp-sa
+  - "container":
+      "args":
+      - |-
+        --image
+      - |-
+        gcr.io/kubeflow-examples/mnist/web-ui:v20190304-v0.2-176-g15d997b-pipelines
+      - |-
+        --name
+      - |-
+        web-ui
+      - |-
+        --container-port
+      - |-
+        5000
+      - |-
+        --service-port
+      - |-
+        80
+      - |-
+        --service-type
+      - |-
+        LoadBalancer
+      "env":
+      - "name": |-
+          GOOGLE_APPLICATION_CREDENTIALS
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      - "name": |-
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      "image": |-
+        gcr.io/kubeflow-examples/mnist/deploy-service:latest
+      "volumeMounts":
+      - "mountPath": |-
+          /secret/gcp-credentials
+        "name": |-
+          gcp-credentials-user-gcp-sa
+    "name": |-
+      web-ui
+    "volumes":
+    - "name": |-
+        gcp-credentials-user-gcp-sa
+      "secret":
+        "secretName": |-
+          user-gcp-sa

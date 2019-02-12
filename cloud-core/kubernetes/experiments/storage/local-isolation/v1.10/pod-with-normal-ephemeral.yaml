@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-normal-ephemeral
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.13
+    resources:
+      requests:
+        cpu: 100m
+        ephemeral-storage: 64Mi
+      limits:
+        cpu: 100m
+        ephemeral-storage: 64Mi

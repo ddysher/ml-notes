@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-overlay-limit
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.13
+    resources:
+      requests:
+        storage.kubernetes.io/overlay: 64Mi
+      limits:
+        storage.kubernetes.io/overlay: 128Mi

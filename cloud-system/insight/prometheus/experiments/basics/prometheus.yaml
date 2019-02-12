@@ -1,0 +1,48 @@
+# The global configuration specifies parameters that are valid in all other
+# configuration contexts. They also serve as defaults for other configuration
+# sections.
+global:
+  # How frequently to scrape targets. By default, scrape targets every 15
+  # seconds.
+  scrape_interval: 15s
+  # Attach these labels to any time series or alerts when communicating with
+  # external systems (federation, remote storage, Alertmanager).
+  external_labels:
+    monitor: 'codelab-monitor'
+
+# Rule files specifies a list of globs. Rules and alerts are read from
+# all matching files.
+rule_files:
+  - 'prometheus.rules'
+
+# A scrape configuration. In prometheus, the following config is considered
+# three targetSet:
+# map[string]*retrieval.targetSet{
+#   "prometheus":(*retrieval.targetSet)(0xc42219e090),
+#   "example-client":(*retrieval.targetSet)(0xc42219e210),
+#   "example-random":(*retrieval.targetSet)(0xc422196210)
+# }
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries
+  # scraped from this config. This is Prometheus itself.
+  - job_name: 'prometheus'
+    # Override the global default and scrape targets from this job every 5 seconds.
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'example-client'
+    static_configs:
+      - targets: ['localhost:8888']
+        labels:
+          group: 'machine'
+
+  - job_name: 'example-random'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['localhost:8080', 'localhost:8081']
+        labels:
+          group: 'production'
+      - targets: ['localhost:8082']
+        labels:
+          group: 'canary'

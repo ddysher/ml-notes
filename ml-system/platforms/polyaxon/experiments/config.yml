@@ -1,0 +1,7 @@
+rbac:
+  enabled: false
+
+ingress:
+  enabled: false
+
+serviceType: NodePort

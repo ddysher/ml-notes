@@ -1,0 +1,19 @@
+{
+  "id": "lsj-pod",
+  "apiVersion": "v1beta1",
+  "kind": "Pod",
+  "namespace": "lsj",
+  "desiredState": {
+    "manifest": {
+      "version": "v1beta1",
+      "id": "lsj-pod",
+      "containers": [{
+        "name": "lsj-pod",
+        "image": "kubernetes/pause",
+      }],
+    }
+  },
+  "labels": {
+    "name": "lsj-pod",
+  }
+}

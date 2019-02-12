@@ -1,0 +1,60 @@
+#+STARTUP: content
+
+** Google internal meeting
+go/gke-stats
+go/kubernetes-status
+go/kubernetes-weekly
+** External meeting
+*** Kubernetes Community Hangout
+    - meeting: https://zoom.us/my/kubernetescommunity
+    - doc :https://docs.google.com/document/d/1VQDIAB0OqiSjIHI8AWMvSdceWhnz56jNpZrLs6o7NJY/edit#
+** k8s v1.0
+optimized for
+- stateless and stateful web app
+- scale out testing
+- devops pipelines
+
+Strong production ready cluster mgmt
+- live upgrade
+- dynamic scale clustes
+- partition resources
+
+Scalable and stable
+- Snappy API's and containser scheduling
+- 100nodes, 1000 containers
+- Stable API
+
+Cloud native application
+
++ Composition of services
++ load balancing
++ name of services
+
+- OS details
+- Machine sizes
+- Mixing of languages
+
+Encapsulated state with APIs
+
+Substructure
+- handle package dependencies
+- different versions, same machine
+- No DLL hell
+
+Pods
+- Co-locate
+- shared volume
+- ip address (IP: migrate Pods; no port conflict)
+- unit of deployment
+
+Some patterns
+- sidecar (helper application)
+- ambassador (proxy for a service: no matter where redis is deployed, talk to me)
+- adapter pattern (an adapter that talks to outside world, e.g. aws logging API vs google logging API)
+
+Reproducibility - exactly same when deploy
+Homogeneity - 
+Technology agnostic - all packaged, blackboxed
+Operational low-overhead
+** k8s v1.2
+   - redhat plan for k8s v1.3: https://docs.google.com/document/d/1o6QLmjKoq0OTfJbPqRQtkZh09FTTEPPyxXSFEHPCtXg/edit

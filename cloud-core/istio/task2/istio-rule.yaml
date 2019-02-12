@@ -1,0 +1,7 @@
+type: route-rule
+name: httpbin-3s-rule
+spec:
+  destination: httpbin.default.svc.cluster.local
+  http_req_timeout:
+    simple_timeout:
+      timeout: 3s

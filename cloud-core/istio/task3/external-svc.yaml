@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+ name: externalbin
+spec:
+ type: ExternalName
+ externalName: httpbin.org
+ ports:
+ - port: 80
+   # important to set protocol name
+   name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: securebaidu
+spec:
+ type: ExternalName
+ externalName: www.baidu.com
+ ports:
+ - port: 443
+   # important to set protocol name
+   name: https

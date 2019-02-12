@@ -1,0 +1,17 @@
+project: horovod-cifar10
+train:
+  framework: tensorflow
+  tensorflow:
+    version: 1.5.0
+    tensorboard: false
+    horovod:
+      workers: 2
+  install:
+    - apt-get update && apt-get install -y git
+    - pip install -r requirements.txt
+  resources:
+    gpus: 1
+    cpus: 2
+    mem: 1024
+  run:
+  - python cifar10.py /data/images --epochs 2

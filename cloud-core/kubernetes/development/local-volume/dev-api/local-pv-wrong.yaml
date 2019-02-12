@@ -1,0 +1,13 @@
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: local-pv
+spec:
+  capacity:
+    storage: 10Gi
+  local:
+    path: /tmp/local-pv
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local-fast

@@ -1,0 +1,6 @@
+syntax = "proto3";
+package main;
+
+message ServiceDiscovery {
+  string order_service_uri = 1;
+}

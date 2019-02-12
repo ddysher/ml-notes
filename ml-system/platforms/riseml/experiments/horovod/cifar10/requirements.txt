@@ -1,0 +1,5 @@
+scipy==0.19.1
+keras==2.1.3
+requests
+h5py
+git+https://github.com/riseml/client-python.git@ff620a18300989bb60cd86e1a92d9cec7df57e97#egg=riseml

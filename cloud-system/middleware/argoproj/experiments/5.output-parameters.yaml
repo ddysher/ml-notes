@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: output-parameter-
+spec:
+  entrypoint: output-parameter
+  templates:
+  - name: output-parameter
+    steps:
+    - - name: generate-parameter
+        template: whalesay
+    - - name: consume-parameter
+        template: print-message
+        arguments:
+          parameters:
+          # Pass the 'hello-param' output from the generate-parameter step
+          # as the message input to print-message. Unlike artifacts where a
+          # repository is required, using outputs.parameters does not require
+          # any repository.
+          - name: message
+            value: "{{steps.generate-parameter.outputs.parameters.hello-param}}"
+
+  - name: whalesay
+    container:
+      image: docker/whalesay:latest
+      command: [sh, -c]
+      # Generate the content of hello_world.txt
+      args: ["echo -n hello world > /tmp/hello_world.txt"]
+    outputs:
+      parameters:
+      - name: hello-param
+        valueFrom:
+          # Name of output parameter is 'hello-param', and set the value of
+          # 'hello-param' to the contents of this hello-world.txt. The value
+          # is loaded from workflow controller using container runtime, and
+          # then saved internally in workflow controller, i.e. we.Template.Outputs.Parameters[i].Value
+          path: /tmp/hello_world.txt
+
+  - name: print-message
+    inputs:
+      parameters:
+      - name: message
+    container:
+      image: docker/whalesay:latest
+      command: [cowsay]
+      args: ["{{inputs.parameters.message}}"]
