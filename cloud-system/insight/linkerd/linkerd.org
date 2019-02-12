@@ -1,0 +1,17 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+
+* Overview
+* Features
+  https://linkerd.io/features/
+  - service discovery
+  - intelligent client-side load balancing
+  - circuit breakers
+  - dynamic routing out-of-the-box
+  - latency-aware load balancing
+  - eventually consistent (“advisory”) service discovery
+  - deadline propagation
+  - tracing and instrumentation
+  - connection pooling
+  - TLS
+  - request-level routing

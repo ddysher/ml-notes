@@ -1,0 +1,8 @@
+#+STARTUP: overview
+
+* Overview
+  Murano is an open source OpenStack project that combines an application catalog
+  with versatile tooling to simplify and accelerate packaging and deployment. It
+  can be used with almost any application and service in OpenStack.
+* References
+  http://docs.openstack.org/developer/murano/

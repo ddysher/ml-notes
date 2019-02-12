@@ -1,0 +1,42 @@
+#+STARTUP: content
+
+* TODOs (06/08)
+** Enable auth. How kubernetes distribute admin:xxxxxxx?
+** Distribute certs to Pods. How?
+** Better storage (Long term)
+
+* Things to consider
+** Failover - replica
+** Where to store
+** Namespace
+** How to address the image
+** Push vs Pull
+   - Run a registry per node which points to the same blobstorage, so to not hammer master
+* Points
+** Run docker-registry as a Pod (Maybe replication controller)
+** Run a service on top of docker-registry as a cluster wide service
+** Initially, run a local volume, e.g. in GCE, it will be a PD
+** Need to come up with label names
+** Security for connecting to the registry
+** Registry mirror
+   https://github.com/docker/docker/blob/master/docs/sources/articles/registry_mirror.md
+** Learn Openshift image repo
+* Problems
+** If running as a GCE PD, then we can bound to the platform
+** Production
+   - For production you should configure and build your own custom registry image from the docker/distribution code.
+
+
+
+* Workflow
+** Create a replication controller
+   - Backing storage (Use official first, but we probably need a configuration file, download/build docker/distribution)
+   - Security (Same as backing storage)
+   - Replica: 1 (Would it be better to have a per-node controller?  If replica > 1, then do we want to replicte image as well?)
+** Create a service
+   - Do we want have read/write service?
+** Build image
+   Build image locally
+** Push image
+   Something must be aware of this (kubectl?)
+   kubectl create image kube-registry.default.local/myimage:mytag?

@@ -1,0 +1,11 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+
+* Overview (12/08/2017, v1)
+  CoreDNS is a DNS server written in Go; it is known for its flexibility by plugins.
+  CoreDNS reaches v1.0 on 12/2017.
+  https://coredns.io/
+* Plugins
+** Kubernetes
+   For kubernetes integration, see kubernetes network.org
+    rewrite name www.google.com www.baidu.com

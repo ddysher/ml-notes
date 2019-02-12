@@ -1,0 +1,28 @@
+project: census-example
+train:
+  framework: tensorflow
+  tensorflow:
+    version: 1.5.0
+    distributed:
+      ps: 1
+      worker: 3
+      master:
+        resources:
+          cpus: 0.2
+          mem: 256
+          gpus: 0
+    tensorboard: true
+  resources:
+    cpus: 0.2
+    mem: 128
+    gpus: 0
+  parameters:
+    num-epochs:
+      - 4
+      - 5
+    embedding-size:
+      - 16
+      - 32
+  concurrency: 1
+  run:
+    - python run.py --num-epochs {{num-epochs}} --num-layers 4 --embedding-size {{embedding-size}}  --verbosity INFO

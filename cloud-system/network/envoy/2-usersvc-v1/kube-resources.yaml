@@ -1,0 +1,29 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: usersvc
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        service: usersvc
+    spec:
+      containers:
+      - name: usersvc
+        image: usersvc:v1
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: usersvc
+  name: usersvc
+spec:
+  type: NodePort
+  ports:
+  - name: usersvc
+    port: 5000
+  selector:
+    service: usersvc

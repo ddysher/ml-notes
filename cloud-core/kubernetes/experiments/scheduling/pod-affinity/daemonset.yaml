@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nginx-ds
+  namespace: kube-system
+  labels:
+    k8s-app: nginx-ds
+spec:
+  selector:
+    matchLabels:
+      name: nginx-ds
+  template:
+    metadata:
+      labels:
+        name: nginx-ds
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: k8s-app
+                operator: NotIn
+                values:
+                - nginx-ds
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: nginx-ds
+        image: nginx:1.13

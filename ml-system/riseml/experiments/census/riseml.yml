@@ -1,0 +1,10 @@
+project: census-example
+train:
+  framework: tensorflow
+  tensorflow:
+    version: 1.5.0
+  resources:
+    cpus: 0.5
+    mem: 512
+    gpus: 0
+  run: python run.py --num-epochs 2 --num-layers 4 --embedding-size 32  --verbosity INFO --job-dir $OUTPUT_DIR

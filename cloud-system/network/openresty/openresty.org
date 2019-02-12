@@ -1,0 +1,17 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+
+* Overview
+  OpenResty is a web server which extends Nginx by bundling it with many useful
+  Nginx modules and Lua libraries.
+* Openresty docker
+** Run openresty server
+   Same as nginx:
+     #+BEGIN_SRC sh
+       docker run -itd -p 8999:80 openresty/openresty:jessie
+     #+END_SRC
+** Run openresty server with lua module
+   Remove above container and start a new server with lua module used:
+     #+BEGIN_SRC sh
+       docker run -itd -p 8999:80 -v `pwd`/simple_lua.conf:/usr/local/openresty/nginx/conf/nginx.conf openresty/openresty:jessie
+     #+END_SRC

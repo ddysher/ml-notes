@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-g2
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.13
+    resources:
+      requests:
+        cpu: 2
+        memory: 128Mi
+      limits:
+        cpu: 2
+        memory: 128Mi

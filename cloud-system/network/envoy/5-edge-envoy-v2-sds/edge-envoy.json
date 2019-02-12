@@ -1,0 +1,69 @@
+{
+  "listeners": [
+    {
+      "address": "tcp://0.0.0.0:80",
+      "filters": [
+        {
+          "type": "read",
+          "name": "http_connection_manager",
+          "config": {
+            "codec_type": "auto",
+            "stat_prefix": "ingress_http",
+            "route_config": {
+              "virtual_hosts": [
+                {
+                  "name": "backend",
+                  "domains": ["*"],
+                  "routes": [
+                    {
+                      "timeout_ms": 0,
+                      "prefix": "/user",
+                      "cluster": "usersvc"
+                    }
+                  ]
+                }
+              ]
+            },
+            "filters": [
+              {
+                "type": "decoder",
+                "name": "router",
+                "config": {}
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "admin": {
+    "access_log_path": "/dev/null",
+    "address": "tcp://127.0.0.1:8001"
+  },
+  "cluster_manager": {
+    "sds": {
+      "cluster": {
+        "name": "usersvc-sds",
+        "connect_timeout_ms": 250,
+        "type": "strict_dns",
+        "lb_type": "round_robin",
+        "hosts": [
+          {
+            "url": "tcp://usersvc-sds:5000"
+          }
+        ]
+      },
+      "refresh_delay_ms": 15000
+    },
+    "clusters": [
+      {
+        "name": "usersvc",
+        "connect_timeout_ms": 250,
+        "type": "sds",
+        "service_name": "usersvc",
+        "lb_type": "round_robin",
+        "features": "http2"
+      }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+#+STARTUP: overview
+
+* Overview
+  Fuel is an open-source tool that enables you to easily and quickly provision
+  multiple OpenStack environments, as well as manage your environments after
+  deployment. Fuel provides a web user interface (WUI), as well as a command-line
+  user interface (CLI) and RESTful API for provisioning, configuration, and
+  management of OpenStack environments. A link to the Horizon OpenStack Dashboard
+  appears in the Fuel web UI after you deploy an OpenStack environment.
+* References
+  https://wiki.openstack.org/wiki/Fuel
+  http://docs.openstack.org/developer/fuel-docs/

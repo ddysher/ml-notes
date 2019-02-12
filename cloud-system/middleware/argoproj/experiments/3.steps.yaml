@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: steps-
+spec:
+  entrypoint: hello-hello-hello
+  # This spec contains two templates: hello-hello-hello and whalesay
+  templates:
+  - name: hello-hello-hello
+    # Instead of just running a container, this template has a sequence of steps
+    # This template is the entrypoint, the execution flow is that 'hello1' runs
+    # first, then 'hello2a' and 'hello2b' run in parallel.
+    steps:
+    - - name: hello1            # hello1 is run before the following steps
+        template: whalesay
+        arguments:
+          parameters:
+          - name: message
+            value: "hello1"
+    - - name: hello2a           # double dash => run after previous step
+        template: whalesay
+        arguments:
+          parameters:
+          - name: message
+            value: "hello2a"
+      - name: hello2b           # single dash => run in parallel with previous step
+        template: whalesay
+        arguments:
+          parameters:
+          - name: message
+            value: "hello2b"
+
+  # This is the same template as from the previous example. Pod in each step
+  # has a sidecar container (argoexec wait) which does artifacts loading, timeout
+  # kill, etc.
+  - name: whalesay
+    inputs:
+      parameters:
+      - name: message
+    container:
+      image: docker/whalesay
+      command: [cowsay]
+      args: ["{{inputs.parameters.message}}"]

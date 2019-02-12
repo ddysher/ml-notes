@@ -1,0 +1,24 @@
+<project>
+  <groupId>edu.berkeley</groupId>
+  <artifactId>simple-project</artifactId>
+  <modelVersion>4.0.0</modelVersion>
+  <name>Simple Project</name>
+  <packaging>jar</packaging>
+  <version>1.0</version>
+  <properties>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+  </properties>
+  <dependencies>
+    <dependency> <!-- Spark dependency -->
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-sql_2.11</artifactId>
+      <version>2.3.0</version>
+    </dependency>
+    <dependency> <!-- Spark dependency -->
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-streaming_2.11</artifactId>
+      <version>2.3.0</version>
+    </dependency>
+  </dependencies>
+</project>

@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nginx-tls
+spec:
+  tls:
+    - hosts:
+      - tls.example.com
+      # This assumes tls-secret exists and the SSL
+      # certificate contains a CN for tls.example.com
+      secretName: tls-secret
+  rules:
+    - host: tls.example.com
+      http:
+        paths:
+        - path: /
+          backend:
+            serviceName: echoheaders
+            servicePort: 80

@@ -1,0 +1,51 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: edge-envoy
+spec:
+  replicas: 1
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        service: edge-envoy
+    spec:
+      containers:
+      - name: edge-envoy
+        image: edge-envoy:v1
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        - containerPort: 8001
+          protocol: TCP
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: edge-envoy-admin
+  name: edge-envoy-admin
+spec:
+  type: NodePort
+  ports:
+  - name: edge-envoy-admin
+    port: 8001
+    targetPort: 8001
+  selector:
+    service: edge-envoy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: edge-envoy
+  name: edge-envoy
+spec:
+  type: NodePort
+  ports:
+  - name: edge-envoy
+    port: 8000
+    targetPort: 80
+  selector:
+    service: edge-envoy

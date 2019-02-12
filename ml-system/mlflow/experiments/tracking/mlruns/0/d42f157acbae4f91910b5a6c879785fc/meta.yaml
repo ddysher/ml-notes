@@ -1,0 +1,13 @@
+artifact_uri: /home/deyuan/code/projects/mlplatform/mlflow/experiments/tracking/mlruns/0/d42f157acbae4f91910b5a6c879785fc/artifacts
+end_time: 1531200230137
+entry_point_name: ''
+experiment_id: 0
+name: Run 1
+run_uuid: d42f157acbae4f91910b5a6c879785fc
+source_name: model.py
+source_type: 4
+source_version: ''
+start_time: 1531200230102
+status: 3
+tags: []
+user_id: deyuan

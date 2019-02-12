@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: echoserver
+  labels:
+    app: echoserver
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  selector:
+    app: echoserver
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: service-one
+  labels:
+    app: echoserver
+    version: v1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: echoserver
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.12.1
+        ports:
+        - containerPort: 80
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: service-two
+  labels:
+    app: echoserver
+    version: v2
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: echoserver
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.13.5
+        ports:
+        - containerPort: 80
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: client
+  labels:
+    app: client
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      containers:
+      - name: app
+        image: tutum/curl:alpine
+        command: [ "/bin/sh", "-c", "--" ]
+        args: [ "while true; do sleep 30; done;" ]

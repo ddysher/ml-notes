@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: staging
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.13
+    resources:
+      requests:
+        cpu: 500m
+        memory: 128Mi

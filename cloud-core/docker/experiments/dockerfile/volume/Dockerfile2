@@ -1,0 +1,27 @@
+# Build with:
+#  $ docker build -t test-volume -f Dockerfile2 .
+#
+# If running with
+#  $ docker run -it -v /foo test-volume bash
+# Then a new volume will be created under /var/lib/docker/volumes, and the file
+# barz will appear in that directory.
+#
+# If running with
+#  $ docker run -it test-volume bash
+# No volume will be created, the file still exists, but is therefore managed via
+# aufs, not volume.
+#
+# If we use 'busybox' as data-only container
+#  $ docker run -v /foo --name ddysher_data busybox true
+# Then
+#  $ docker run --rm --volumes-from ddysher_data test-volume
+# We'll see that nothing is in /foo directory and /foo is owned by root. However
+# if we use 'test-volume' as data-only container, we'll be able to see 'barz' file.
+#  $ docker rm -v ddysher_data
+#  $ docker run --rm --volumes-from ddysher_data test-volume
+FROM debian:jessie
+RUN useradd ddysher
+RUN mkdir /foo && touch /foo/barz && chown -R ddysher:ddysher /foo
+
+USER ddysher
+CMD ls -lh /foo

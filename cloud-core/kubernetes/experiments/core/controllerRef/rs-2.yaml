@@ -1,0 +1,17 @@
+apiVersion: extensions/v1beta1
+kind: ReplicaSet
+metadata:
+  name: replicaset-2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      environment: prod
+  template:
+    metadata:
+      labels:
+        environment: prod
+    spec:
+      containers:
+      - name: created-from-replicaset
+        image: nginx:1.13

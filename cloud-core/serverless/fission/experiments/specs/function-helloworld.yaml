@@ -1,0 +1,51 @@
+include:
+- hw.go
+kind: ArchiveUploadSpec
+name: hw-go-0QQ1
+
+---
+apiVersion: fission.io/v1
+kind: Package
+metadata:
+  creationTimestamp: null
+  name: hw-go-gv6u
+  namespace: default
+spec:
+  deployment:
+    checksum: {}
+  environment:
+    name: go
+    namespace: default
+  source:
+    checksum: {}
+    type: url
+    url: archive://hw-go-0QQ1
+status:
+  buildstatus: pending
+
+---
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  creationTimestamp: null
+  name: helloworld
+  namespace: default
+spec:
+  InvokeStrategy:
+    ExecutionStrategy:
+      ExecutorType: poolmgr
+      MaxScale: 0
+      MinScale: 0
+      TargetCPUPercent: 0
+    StrategyType: execution
+  configmaps: null
+  environment:
+    name: go
+    namespace: default
+  package:
+    functionName: Handler
+    packageref:
+      name: hw-go-gv6u
+      namespace: default
+  resources: {}
+  secrets: null

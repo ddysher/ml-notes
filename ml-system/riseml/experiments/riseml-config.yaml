@@ -1,0 +1,11 @@
+accountKey: hpy7zpjp1yk4r17zsd5xze7jsp4qc1qu
+adminApiKey: yourSecretApiKeyYouWantToUse1234
+adminEmail: deyuan.deng@gmail.com
+minio:
+  enabled: true
+  secretKey: mlriseapikey
+nodeSelectors:
+  system:
+    riseml.com/system-node: "true"
+  imageBuilder:
+    riseml.com/build-node: "true"

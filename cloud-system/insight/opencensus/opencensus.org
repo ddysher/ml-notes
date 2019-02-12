@@ -1,0 +1,49 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+
+* Overview
+  From official website:
+    Opencensus is a single distribution of libraries that automatically collects
+    traces and metrics from your app, displays them locally, and sends them to any
+    analysis tool.
+  At its core, Opencensus is an instrumentation library: you import Opencensus,
+  use its API, then you get traces, metrics, stats, tags, etc.
+   - One takeway here is that Opencensus is NOT a system; it is an instrumentation
+     library, which means if you want trace, you need to deploy jaeger or zipkin,
+     if you want monitoring, you need to deploy prometheus, etc.
+   - Another takeway here is "single distribution". Unlike other standard, e.g.
+     opentracing, where only specification is defined and actual implementations
+     are from various repositories, Opencensus defines its API, as well as a
+     standard, single distribution for client to use.
+   - Also from official website, one of Opencensus features is to integrate with
+     web and RPC framework, making traces and metrics available out of box. Some
+     of the framework are Spring, gRPC, Dropwizard, Django, etc. Applications do
+     not need to understand much about Opencensus, they just enable its features
+     along with web & RPC framework.
+* Features
+** Context
+   Opencensus aims to provide a standard approach to support context propagation,
+   i.e. propagate a specific context (trace, tags) in-process (possibly between
+   threads) and between function calls. Some languages already have this support,
+   like Go (context.Context) or C# (Activity). grpc has a generic context implementation.
+** Tags
+   Tags are values propagated through the Context subsystem inside a process and
+   among processes by any transport (e.g. RPC, HTTP, etc.). Opencensus defines the
+   API (key/value pair) and corresponding requirements (e.g. key length limitation),
+   as well as serialization, etc.
+** Trace
+   Opencensus provides tracing support, which overlaps with OpenTracing (note it
+   overlaps with OT, not support OT). Opencensus has its own implementation of
+   dealing with traces, though both OT and OC have similar concepts from Dapper.
+   Opencensus supports jaeger backend, where spans are sent directly from Opencensus
+   library to jaeger collector, bypassing jaeger agent (collector port 14267 is
+   used for jaeger agent to send span, 14268 is used for client to directly send
+   span to jaeger collector).
+** Stats
+   Opencensus defines its own API to record metrics, and support various backend
+   to expose metrics, e.g. prometheus, stackdriver.
+* Experiments
+  Ref: https://github.com/census-instrumentation/opencensus-go/tree/v0.3.0/examples
+* References
+  http://opencensus.io/
+  https://github.com/census-instrumentation/opencensus-specs

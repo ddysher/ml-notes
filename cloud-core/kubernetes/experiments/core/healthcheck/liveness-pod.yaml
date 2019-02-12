@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-liveness
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.13
+    livenessProbe:
+      exec:
+        # Note the synctax for exec command. Following command won't work
+        # since command is an array.
+        #   command:
+        #     - ls -l
+        command:
+          - ls
+          - -l

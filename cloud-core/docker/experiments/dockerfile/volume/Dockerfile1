@@ -1,0 +1,15 @@
+FROM busybox
+
+# This will work since when executing VOLUME, the image already have the file,
+# docker will copy data to /data.
+RUN mkdir /data && echo "Echo Data" > /data/exist.txt
+
+# When run, docker will create a volume path in /var/lib/docker/volumes.
+VOLUME /data
+
+# NOTE, this won't work as VOLUME instruction is executed when running container.
+# Changes here will be discarded as docker commits this to a temporary container
+# and when finished executing RUN, it removes the volume.
+RUN echo "Echo Data" > /data/not-exist.txt
+
+CMD ["echo", "volume"]

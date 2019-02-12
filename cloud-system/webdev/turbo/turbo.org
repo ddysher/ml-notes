@@ -1,0 +1,22 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+
+* Overview
+  Turbo is a framework built for LuaJIT 2 to simplify the task of building fast
+  and scalable network applications. It uses a event-driven, non-blocking, no
+  thread design to deliver excellent performance and minimal footprint to high-load
+  applications while also providing excellent support for embedded uses. Turbo
+  is inspired by Tornado.
+* Simple workflow
+  - The web.RequestHandler:initialize() is called each time when a request comes;
+    in the method, 'self' is the child class, e.g. ExampleHandler for helloworld.lua
+  - The "request_callback" passed to httpserver.HTTPServer:initialize() method is
+    the Application class.
+  - local server = httpserver.HTTPServer:new(self, nil, nil, nil, kwargs): this
+    will create an instance of HTTPServer. Note httpserver.HTTPServer is a subclass
+    of tcpserver.TCPServer, so when we call server:listen(), the listen method in
+    tcpserver will be called.
+  - The listen() method call sockutil.bind_sockets().  This method will create a
+    socket, bind it and make it a listening socket.  First part of typical socket
+    programing, i.e. socket() -> bind() -> listen(), the method will return a
+    listening socket at last.

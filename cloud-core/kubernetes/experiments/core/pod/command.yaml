@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod
+spec:
+  containers:
+  - name: debian
+    image: debian:jessie
+    command: ["printenv"]
+    args: ["HOSTNAME", "KUBERNETES_PORT"]
+  restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod
+spec:
+  containers:
+  - name: debian
+    image: debian:jessie
+    command:
+    - /bin/sh
+    - -c
+    - while  [ ! -f /root/t.log ]; do sleep 1; done
+  restartPolicy: OnFailure

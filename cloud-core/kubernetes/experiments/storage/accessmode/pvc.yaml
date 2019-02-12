@@ -1,0 +1,11 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fake
+  resources:
+    requests:
+      storage: 8Gi

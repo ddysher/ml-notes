@@ -1,0 +1,16 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+
+* Overview
+  libpcap, a system-independent interface for user-level packet capture. libpcap
+  provides a portable framework for low-level network monitoring. The libpcap
+  interface supports a filtering mechanism based on the architecture in the BSD
+  packet filter. A lot of tools are built on top of libpcap, e.g. nDPI, tcpdump,
+  tshark, ntopng, nDPI, etc.
+* Experiments
+  See "code/learning/network/libpcap" for details.
+* References
+  http://www.tcpdump.org/
+  http://www.tcpdump.org/pcap.html
+  http://yuba.stanford.edu/~casado/pcap/section1.html
+  https://github.com/the-tcpdump-group/libpcap

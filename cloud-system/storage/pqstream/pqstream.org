@@ -1,0 +1,61 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+
+* Overview (09/09/2017, no release)
+  https://github.com/tmc/pqstream
+  pqstream turns your postgres database into an event stream. It is a program
+  that streams changes out of a postgres database with the intent of populating
+  other systems and enabling stream processing of data sets. Given a database
+  and a regular expression to match tables, it install triggers for all tables,
+  using:
+    #+BEGIN_SRC sql
+      CREATE TRIGGER pqstream_notify
+      AFTER INSERT OR UPDATE OR DELETE ON %s
+         FOR EACH ROW EXECUTE PROCEDURE pqstream_notify();
+    #+END_SRC
+  where 'pqstream_notify' is trigger name, '%s' is table name. It also configures
+  postgres to setup json payload, see: https://blog.andyet.com/2015/04/06/postgres-pubsub-with-json/.
+* Experiment
+** Run postgres database
+   #+BEGIN_SRC sh
+     # Run a pg database.
+     docker volume create pgdata
+     docker run --name postgres-migration -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=password \
+            -e POSTGRES_DB=defaultdb \
+            -v pgdata:/var/lib/postgresql/data \
+            -d postgres:9.6
+
+     # Connect to postgres and create a table, e.g.
+     psql -h localhost defaultdb postgres
+     # Then use:
+     CREATE TABLE COMPANY(
+        ID INT PRIMARY KEY     NOT NULL,
+        NAME           TEXT    NOT NULL,
+        AGE            INT     NOT NULL,
+        ADDRESS        CHAR(50),
+        SALARY         REAL
+     );
+   #+END_SRC
+** Run pqstream agent
+   Start pqstream agent. It will install triggers and wait for notification from
+   postgres tables.
+     #+BEGIN_SRC sh
+       go get -u github.com/tmc/pqstream/cmd/{pqs,pqsd}
+       pqsd -connect postgresql://postgres:password@localhost/defaultdb?sslmode=disable
+     #+END_SRC
+** Run pqstream client
+   Start cli `pqs`. The agent "pqsd" is a publisher, it listens pg and stream
+   data to subscribers, which is the cli here.
+** Create data in postgres
+   Insert a record in postgres and see output from pqs, e.g.
+     #+BEGIN_SRC sh
+       # In psql shell:
+       insert into company (ID,NAME,AGE,ADDRESS,SALARY) values (1,'caicloud',2,'China','3.0');
+     #+END_SRC
+** Clean up
+   #+BEGIN_SRC sh
+     docker rm -f -v postgres-migration
+     docker volume rm pgdata
+   #+END_SRC

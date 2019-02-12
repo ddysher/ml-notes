@@ -1,0 +1,10 @@
+job_service:rpc_durations_seconds_count:avg_rate5m = avg(rate(rpc_durations_seconds_count[5m])) by (job, service)
+
+# Alert for any instance that have a median request latency >1s.
+ALERT RPCHighRequestLatency
+  IF rpc_durations_seconds_sum{group="production",instance="localhost:8081",job="example-random",service="uniform"} > 0.1
+  FOR 10s
+  ANNOTATIONS {
+    summary = "High request latency on {{ $labels.instance }}",
+    description = "{{ $labels.instance }} has a median request latency above 1s (current value: {{ $value }}s)",
+  }

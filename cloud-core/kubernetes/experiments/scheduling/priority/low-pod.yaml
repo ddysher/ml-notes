@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.13
+  priorityClassName: low-priority
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: env
+            operator: NotIn
+            values:
+            - test
+        topologyKey: "kubernetes.io/hostname"
+        namespaces:
+          - default
+          - abc
