@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis
+spec:
+  containers:
+  - name: redis
+    image: kubernetes/redis:v1
+    env:
+    - name: MASTER
+      value: "true"
+    ports:
+    - containerPort: 6379
+    resources:
+      limits:
+        cpu: "0.1"
+    volumeMounts:
+    - mountPath: /redis-master-data
+      name: data
+    # This volume is mounted into the /redis-master directory in the redis
+    # container, placing our config file at /redis-master/redis.conf, which
+    # is where the image looks for the redis config file for the master.
+    - mountPath: /redis-master
+      name: config
+  volumes:
+    - name: data
+      emptyDir: {}
+    - name: config
+      # This pod has a ConfigMap volume that places the redis-config key of the
+      # example-redis-config ConfigMap into a file called redis.conf
+      configMap:
+        name: example-redis-config
+        items:
+        - key: redis-config
+          path: redis.conf

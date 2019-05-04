@@ -1,0 +1,19 @@
+{
+  "id": "ddysher-pod",
+  "apiVersion": "v1beta1",
+  "kind": "Pod",
+  "namespace": "ddysher",
+  "desiredState": {
+    "manifest": {
+      "version": "v1beta1",
+      "id": "ddysher-pod",
+      "containers": [{
+        "name": "ddysher-pod",
+        "image": "kubernetes/pause",
+      }],
+    }
+  },
+  "labels": {
+    "name": "ddysher-pod",
+  }
+}

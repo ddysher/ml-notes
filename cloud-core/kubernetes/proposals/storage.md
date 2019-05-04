@@ -2,6 +2,9 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
+- [KEPs](#keps)
+  - [KEP-20190120: ExecutionHook](#kep-20190120-executionhook)
+  - [KEP-20190129: PVCTaint](#kep-20190129-pvctaint)
 - [Feature & Design](#feature--design)
   - [volume provisioning and storageclass](#volume-provisioning-and-storageclass)
   - [configurable volume provisioning](#configurable-volume-provisioning)
@@ -39,13 +42,49 @@
 
 ## KEP-20190120: ExecutionHook
 
-Volume snapshot support was introduced in Kubernetes v1.12 as an alpha feature.
-In the alpha implementation of snapshots for Kubernetes, there is no snapshot consistency
-guarantees beyond any guarantees provided by storage system (e.g. crash consistency).
+*Date: 02/13/2019, v1.13, design*
 
-This proposal is aimed to address that limitation by providing an `ExecutionHook`
-in the `Container` struct. The snapshot controller will look up this hook before
-taking a snapshot and execute it accordingly.
+The KEP introduces ExecutionHook inside of container, which should be executed by different external
+controllers upon taking necessary actions, e.g. following is an example Pod spec. Each hook has a
+type definition; external controller should proactively watch and execute the hook if the pod has
+specific types that it cares about.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hook-demo
+spec:
+  containers:
+  - name: demo-container
+    image: mysql
+    executionHooks:
+      - name: freeze
+        type: Freeze
+        exec:
+          command: [“run_quiesce.sh”]
+        timeoutSeconds: 30
+      - name: thaw
+        type: Thaw
+        exec:
+          command: [“run_unquiesce.sh”]
+        timeoutSeconds: 30
+```
+
+The proposal is introduced for volume snapshot support to ensure consistent snapshot, but can also
+extend to other use cases. In particular, two types are defined: `Freeze` and `Thaw`. Snapshot
+controller will look up the hooks before/after taking a snapshot and execute them accordingly.
+
+*References*
+
+- https://github.com/kubernetes/enhancements/pull/705
+
+## KEP-20190129: PVCTaint
+
+*Date: 02/15/2019, v1.13, design*
+
+The proposal extends the concept of node taint/toleration to volumes: admin can taint volumes and
+only pods that tolerate specific taint can use the volumes.
 
 *References*
 

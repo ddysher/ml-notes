@@ -3,13 +3,15 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Mount propagation in docker](#mount-propagation-in-docker)
+- [Appendix: Mount propagation in Linux](#appendix-mount-propagation-in-linux)
+  - [shared mount](#shared-mount)
+  - [private mount](#private-mount)
+  - [slave mount](#slave-mount)
+  - [unbindable mount](#unbindable-mount)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Mount propagation in docker
-
-For general mount propagation concept, see `learning/storage/mount. Below is a list of practices to
-experiment how mount propagation work in docker.
 
 **Run normal docker container with hostpath**
 
@@ -221,3 +223,122 @@ this setup, mount event under both '/tmp/test1' and '/tmp/test2' will not propag
     audit             drirc          gshadow-        kernel         logrotate.d      nanorc          passwd         rc_maps.cfg        shadowsocks        udisks2
     ....
     $ ls /tmp/test1/bind2
+
+# Appendix: Mount propagation in Linux
+
+If a process clones its own namespace (mount namespace) but still wants to access future monut in
+child namespace, then mount propagation is used to share the mounts.
+- shared mount: any mount in any namespace will be propagated to other namespace;
+- slave mount: mount event in master will be propagated to slave, but not the other way around;
+- private mount: the default - mount event won't be propagated at all;
+- unbindable mount: unbindable private mount.
+
+Note, rshared means "recursive shared".
+
+*References*
+
+- https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
+
+## shared mount
+
+In the following example, we create a mount point 'aaa' then make it a shared mount point. We then
+bind mount 'bbb' to 'aaa', and in 'aaa', we create another mount point 'xxx'. In the end, we'll see
+'xxx' under 'bbb' due to shared mount.
+
+     vagrant@vagrant-ubuntu-trusty-64:~$ cd /tmp/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir aaa
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount -t tmpfs none aaa/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount --make-shared aaa
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir bbb
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount --bind aaa/ bbb/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ touch aaa/file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls aaa/
+     file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/
+     file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir aaa/xxx
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount -t tmpfs none aaa/xxx/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ touch aaa/xxx/file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/
+     file  xxx/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/xxx/
+     file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$
+
+## private mount
+
+Similar to the above setup except we do not make 'aaa' a shared mount point. In the end, we can't
+see 'xxx' under 'bbb' due to private mount (default).
+
+     vagrant@vagrant-ubuntu-trusty-64:~$ cd /tmp/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir aaa
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount -t tmpfs none aaa/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir bbb
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount --bind aaa/ bbb/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ touch aaa/file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls aaa/
+     file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/
+     file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir aaa/xxx
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount -t tmpfs none aaa/xxx/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ touch aaa/xxx/file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/
+     file  xxx
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/xxx/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$
+
+## slave mount
+
+Similar to the above setup except we make 'aaa' a shared mount point and 'bbb' a slave mount point.
+In 'aaa', we create another mount point 'xxx' and 'bbb' is able to see it; while in 'bbb', we
+create another mount point 'yyy' but this time 'aaa' can't see it due to slave mount.
+
+     vagrant@vagrant-ubuntu-trusty-64:~$ cd /tmp/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir aaa
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount -t tmpfs none aaa/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount --make-shared aaa
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir bbb
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount --bind aaa/ bbb/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount --make-slave bbb
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ touch aaa/file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls aaa/
+     file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/
+     file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir aaa/xxx
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount -t tmpfs none aaa/xxx/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ touch aaa/xxx/file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/
+     file  xxx
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/xxx/
+     file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir bbb/yyy
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount -t tmpfs none bbb/yyy/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ touch bbb/yyy/file
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls aaa/
+     file  xxx  yyy
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls aaa/yyy/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/
+     file  xxx  yyy
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls bbb/yyy/
+     file
+
+## unbindable mount
+
+Similar to the above setup except we make 'aaa' an unbindable mount point.
+
+     vagrant@vagrant-ubuntu-trusty-64:~$ cd /tmp/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ ls
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir aaa
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount -t tmpfs none aaa/
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount --make-unbindable aaa
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ mkdir bbb
+     vagrant@vagrant-ubuntu-trusty-64:/tmp$ sudo mount --bind aaa/ bbb/
+     mount: wrong fs type, bad option, bad superblock on /tmp/aaa,
+            missing codepage or helper program, or other error
+            In some cases useful info is found in syslog - try
+            dmesg | tail  or so

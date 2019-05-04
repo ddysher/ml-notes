@@ -119,7 +119,6 @@ $ wget https://dvc.org/s3/get-started/data.xml
 $ ls -lh
 total 37M
 -rw-r--r-- 2 deyuan deyuan 37M Aug  9 08:47 data.xml
--rw-r--r-- 1 deyuan deyuan 115 Oct 16 15:16 data.xml.dvc
 
 $ dvc add data.xml
 Checking for updates...

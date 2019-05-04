@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: configmap-env-pod
+spec:
+  containers:
+    - name: container
+      image: busybox:1.26
+      command:
+        - /bin/sh
+        - -c
+        - env & sleep 100000
+      env:
+        - name: CONFIG_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: size
+        - name: CONFIG_DIFFICULTY
+          valueFrom:
+            configMapKeyRef:
+              name: training-config
+              key: difficulty

@@ -1,0 +1,22 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1alpha1
+metadata:
+  name: user-cannot-read-secret
+rules:
+  - apiGroups: ["*"]
+    resources:
+    - pods
+    - pods/exec
+    verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1alpha1
+metadata:
+  name: user-cannot-read-secret-role-binding
+subjects:
+  - kind: User
+    name: other
+roleRef:
+  kind: Role
+  name: user-cannot-read-secret
+  apiGroup: rbac.authorization.k8s.io

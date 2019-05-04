@@ -313,3 +313,4 @@ and higher-order behaviors like policy-based placement and dynamic scheduling.
 *References*
 
 - [design doc](https://docs.google.com/document/d/1ihWETo-zE8U_QNuzw5ECxOWX0Df_2BVfO3lC4OesKRQ/edit#)
+- https://kubernetes.io/blog/2018/12/12/kubernetes-federation-evolution/

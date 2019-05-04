@@ -1,0 +1,17 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: multi-container
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.13 # /log/nginx.log
+      volumeMounts:
+        path: /log
+    - name: fluent
+      image: fluent/fluentd:v0.12
+      volumeMounts:
+        path: /anotherpath
+  volume:
+    name: log
+    emptydir: {}

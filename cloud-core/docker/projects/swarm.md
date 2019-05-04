@@ -12,7 +12,7 @@
 
 # Overview
 
-*Date: 07/23/2016
+*Date: 07/23/2016*
 
 Docker Swarm is native clustering for Docker. It turns a pool of Docker hosts into a single, virtual
 Docker host. Because Docker Swarm serves the standard Docker API, any tool that already communicates
@@ -20,7 +20,7 @@ with a Docker daemon can use Swarm to transparently scale to multiple hosts.
 
 # Architecture
 
-<p align="center"><img src="./assets/swarm-architecture.jpg" height="480px" width="auto"></p>
+<p align="center"><img src="../assets/swarm-architecture.jpg" height="480px" width="auto"></p>
 
 As shown in the diagram, swarm cluster consists of master and node. All docker operations go through
 swarm master. The master has scheduler, discovery service, etc. Master alse uses docker APIs to dispatch

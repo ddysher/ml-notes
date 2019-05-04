@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-for-shaping
+  annotations:
+    kubernetes.io/ingress-bandwidth: 1M
+    kubernetes.io/egress-bandwidth: 1M
+spec:
+  containers:
+    - name: container
+      image: nginx:1.13
+      ports:
+        - containerPort: 80

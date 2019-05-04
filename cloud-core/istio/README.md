@@ -292,7 +292,9 @@ The discovery process implements envoy's SDS, CDS and RDS, which can be seen as 
 information to all envoy proxies. As we can see below, envoy proxies configure istio-pilot as its
 source of discovery.
 
-For example. querying `v1/registration` endpoint of istio-pilot in sds gives:
+For example, querying `v1/registration` endpoint of istio-pilot in sds gives:
+
+<details><summary>istio-pilot sds</summary><p>
 
 ```
 $ curl 10.0.0.11:8080/v1/registration
@@ -381,6 +383,8 @@ $ curl 10.0.0.11:8080/v1/registration
  ]
 ```
 
+</p></details></br>
+
 The above is informational, it's not called by envoy. Below is a real query:
 
 ```
@@ -422,6 +426,8 @@ We'll get this from sds:
 ```
 
 Querying `v1/clusters` returns all clusters:
+
+<details><summary>All clusters</summary><p>
 
 ```
 $ curl 10.0.0.11:8080/v1/clusters
@@ -618,7 +624,11 @@ $ curl 10.0.0.11:8080/v1/clusters
  ]
 ```
 
+</p></details></br>
+
 Querying `v1/routes` returns all routes:
+
+<details><summary>All routes</summary><p>
 
 ```
 $ curl 10.0.0.11:8080/v1/routes
@@ -1256,14 +1266,19 @@ $ curl 10.0.0.11:8080/v1/routes
 ]
 ```
 
+</p></details></br>
+
+
 To find how istio/envoy handles traffic. First look at configuration of an envoy instance. Then look
-at 'v1/routes' to see where traffic is sent (a cluster), then look at 'v1/clusters' and 'v1/registration'
+at `v1/routes` to see where traffic is sent (a cluster), then look at `v1/clusters` and `v1/registration`
 to see what constitute the cluster.
 
 **Envoy ingress/egress config**
 
 At this point, we can take a look at configs in envoy. Below is ingress envoy config (under /etc/envoy
 in istio-ingress pod):
+
+<details><summary>Ingress Envoy</summary><p>
 
 ```
 {
@@ -1377,11 +1392,16 @@ in istio-ingress pod):
 }
 ```
 
+</p></details></br>
+
 As shown in the config, apart from zipkin, which is a well-defined service, there is nothing static
-configured in ingress envoy; every is dynamic, i.e. istio uses "rds" to discover routes, uses "sds"
-to discover services of a cluster, uses "cds" to discover cluster. All discovery services run in
-"istio-pilot" service. Config from egress envoy is the same (even though tracing name == "ingress"),
+configured in ingress envoy; everything is dynamic, i.e. istio uses "rds" to discover routes, uses
+"sds" to discover services of a cluster, uses "cds" to discover cluster. All discovery services run
+in "istio-pilot" service. Config from egress envoy is the same (even though tracing name == "ingress"),
 i.e.
+
+<details><summary>Egress Envoy</summary><p>
+
 ```
 {
   "listeners": [
@@ -1493,6 +1513,8 @@ i.e.
 }
 ```
 
+</p></details></br>
+
 **Envoy <-> Istio concept**
 
 Each kubernetes service is a cluster in envoy. Each kubernetes pod is the service-node parameter in envoy.
@@ -1535,7 +1557,7 @@ $ kubectl logs ${SERVER} proxy | grep cd30da12-ee24-9429-b188-2d494017c083
 [2017-08-08T00:22:56.671Z] "GET / HTTP/1.1" 200 - 0 558 105 0 "-" "curl/7.47.0" "cd30da12-ee24-9429-b188-2d494017c083" "service-two" "127.0.0.1:8080"
 ```
 
-Apart from the inject sidecar container, each pod also has init containers. One of them is used to
+Apart from the injected sidecar container, each pod also has init containers. One of them is used to
 enable core dump (debug); the other is used to transparently redirect all inbound and outbound traffic
 to the proxy. It is running as an init container because:
 - iptables requires NET_CAP_ADMIN.
@@ -1607,7 +1629,7 @@ service-one     10.0.0.24    <none>        80/TCP                        5m
 service-two     10.0.0.217   <none>        80/TCP                        5m
 ```
 
-Envoy sidecar config:
+<details><summary>Envoy sidecar config</summary><p>
 
 ```json
 {
@@ -2135,6 +2157,8 @@ Envoy sidecar config:
 }
 ```
 
+</p></details></br>
+
 As seen from the config, each service in kubernetes forms a cluster. If we add one more deployment, e.g.
 
 ```
@@ -2225,7 +2249,7 @@ call external services directly.
 
 **Task4: Request Routing (no success)**
 
-The basic idea is to create a resource 'RouteRule' (kubernetes tpr) and have pilot propagating
+The basic idea is to create a resource 'RouteRule' (kubernetes TPR) and have pilot propagating
 configurations to all pods. For example:
 
 ```yaml
@@ -2424,6 +2448,8 @@ discovery service, lds, is also added to pilot. As before, envoy config does not
 routes, clusters, etc, and in 0.2.2, no listeners as well. Both ingress and egress istio proxy has the
 same config, e.g.
 
+<details><summary>Ingress and Egress Envoy Config</summary><p>
+
 ```
  {
   "listeners": [],
@@ -2492,6 +2518,8 @@ same config, e.g.
 }
 ```
 
+</p></details></br>
+
 Following is the start commands in a sidecar pod:
 
 ```
@@ -2500,6 +2528,8 @@ Following is the start commands in a sidecar pod:
 ```
 
 Let's try to dig through ingress's config chain, first find listener:
+
+<details><summary>Listener</summary><p>
 
 ```
 $ curl 172.17.0.4:8080/v1/listeners/istio-proxy/ingress~~istio-ingress-3729647984-9j1n8.default~default.svc.cluster.local
@@ -2561,7 +2591,11 @@ $ curl 172.17.0.4:8080/v1/listeners/istio-proxy/ingress~~istio-ingress-372964798
  }
 ```
 
+</p></details></br>
+
 Then find routes:
+
+<details><summary>Routes</summary><p>
 
 ```
 $ curl 172.17.0.4:8080/v1/routes/80/istio-proxy/ingress~~istio-ingress-3729647984-9j1n8.default~default.svc.cluster.local
@@ -2623,6 +2657,8 @@ $ curl 172.17.0.4:8080/v1/routes/80/istio-proxy/ingress~~istio-ingress-372964798
   ]
  }
 ```
+
+</p></details></br>
 
 This shows that ingress rules are converted to envoy rds. To find out the cluster in the route config
 (out.304d4aa908c3ed9923066c887a9466a0755bd896); let's curl clusters endpoing:
@@ -3025,7 +3061,11 @@ ratings-v1-1946739047-xbt38      2/2       Running   0          2m        172.17
 reviews-v1-3648490622-b6w0c      2/2       Running   0          2m        172.17.0.10   127.0.0.1
 reviews-v2-348932222-538tj       2/2       Running   0          2m        172.17.0.11   127.0.0.1
 reviews-v3-3278364722-fp0q8      2/2       Running   0          2m        172.17.0.12   127.0.0.1
+```
 
+<details><summary>Listeners</summary><p>
+
+```
 $ curl 172.17.0.4:8080/v1/listeners/istio-proxy/sidecar~172.17.0.13~productpage-v1-453580229-6h30z.default~default.svc.cluster.local 2>/dev/null
 {
   "listeners": [
@@ -3565,6 +3605,8 @@ $ curl 172.17.0.4:8080/v1/listeners/istio-proxy/sidecar~172.17.0.13~productpage-
   ]
  }
 ```
+
+</p></details></br>
 
 The last few lines show the ssl context of the envoy sidecar. Envoy will use the certificates to
 handle runtime traffic. To test, run:

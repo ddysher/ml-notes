@@ -8,8 +8,8 @@
   - [Runtime change](#runtime-change)
 - [Docker 1.12](#docker-112)
   - [SwarmKit](#swarmkit)
-  - [overlay2](#overlay2)
-  - [macvlan](#macvlan)
+  - [Overlay2](#overlay2)
+  - [Macvlan](#macvlan)
 - [Github Issues](#github-issues)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -56,13 +56,13 @@ events and attach to stdio.
 Docker 1.12 has built-in orchestration, the underline project is swarmkit. For more details, ref
 ./swarmkit.md.
 
-## overlay2
+## Overlay2
 
 Since version 1.12, Docker also provides overlay2 storage driver which is much more efficient than
 overlay in terms of inode utilization. The overlay2 driver is only compatible with Linux kernel 4.0
 and later.
 
-## macvlan
+## Macvlan
 
 In version 1.12, macvlan network driver leaves experimental and becomes production ready.
 

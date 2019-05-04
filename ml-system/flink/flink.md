@@ -12,8 +12,6 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=65147077
-
 # Overview
 
 [Apache Flink](https://flink.apache.org/) is an open source streaming data flow engine that provides
@@ -71,11 +69,11 @@ An typical workflow in Flink:
   to different TaskManager (to be precise, task slot).
 - TaskManager runs task in its JVM process, and reports back task status to JobManager.
 
-<p align="center"><img src="./assets/deployment-architecture.jpg" height="360px" width="auto"></p>
+<p align="center"><img src="./assets/deployment-architecture.jpg" height="420px" width="auto"></p>
 
 Another execution model diagram below:
 - Program: Developer wrote the application program.
-- Parse and Optimize: The code parsing, Type Extractor, and Optimization are done during this step(Flink client code).
+- Parse and Optimize: The code parsing, Type Extractor, and Optimization are done during this step (Flink client code).
 - DataFlow Graph: Each and every job converts into the data flow graph (Flink client code).
 - Job Manager: Now job manager schedules the task on the task managers; keeps the data flow metadata.
   Job manager deploys the operators and monitors the intermediate task results
@@ -101,6 +99,7 @@ also means for streaming at least, Flink is faster than Spark:
 *References*
 
 - https://data-flair.training/blogs/comparison-apache-flink-vs-apache-spark/
+- https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=65147077
 - https://zhuanlan.zhihu.com/p/36022692
 - https://zhuanlan.zhihu.com/p/36024639
 
@@ -108,7 +107,7 @@ also means for streaming at least, Flink is faster than Spark:
 
 *Date: 12/09/2018, v1.7.0*
 
-**Standlone Cluster**
+**Standalone Cluster**
 
 Download Flink:
 

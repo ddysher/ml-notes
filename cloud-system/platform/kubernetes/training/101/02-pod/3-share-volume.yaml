@@ -1,0 +1,20 @@
+# This is a pod with volume.
+kind: Pod
+apiVersion: v1
+metadata:
+  name: share-volume
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.13
+      volumeMounts:
+        - name: storage
+          mountPath: /volume/fluentd
+    - name: fluent
+      image: fluent/fluentd:v0.12
+      volumeMounts:
+        - name: storage
+          mountPath: /fluentd/log
+  volumes:
+    - name: storage
+      emptyDir: {}

@@ -96,38 +96,40 @@ For privileged container, docker will pass all devices to allowed cgroup devices
 container access to devices, we need to use `--device` option and docker will pass individual device
 to device cgroup:
 
-    // docker/daemon/oci_linux.go
-    func setDevices(s *specs.Spec, c *container.Container) error {
-      // Build lists of devices allowed and created within the container.
-      var devs []specs.Device
-      devPermissions := s.Linux.Resources.Devices
-      if c.HostConfig.Privileged {
-        hostDevices, err := devices.HostDevices()
-        if err != nil {
-          return err
-        }
-        for _, d := range hostDevices {
-          devs = append(devs, specDevice(d))
-        }
-        rwm := "rwm"
-        devPermissions = []specs.DeviceCgroup{
-          {
-            Allow:  true,
-            Access: &rwm,
-          },
-        }
-      } else {
-        for _, deviceMapping := range c.HostConfig.Devices {
-          d, dPermissions, err := getDevicesFromPath(deviceMapping)
-          if err != nil {
-            return err
-          }
-          devs = append(devs, d...)
-          devPermissions = append(devPermissions, dPermissions...)
-        }
-      }
-
-      s.Linux.Devices = append(s.Linux.Devices, devs...)
-      s.Linux.Resources.Devices = devPermissions
-      return nil
+```go
+// docker/daemon/oci_linux.go
+func setDevices(s *specs.Spec, c *container.Container) error {
+  // Build lists of devices allowed and created within the container.
+  var devs []specs.Device
+  devPermissions := s.Linux.Resources.Devices
+  if c.HostConfig.Privileged {
+    hostDevices, err := devices.HostDevices()
+    if err != nil {
+      return err
     }
+    for _, d := range hostDevices {
+      devs = append(devs, specDevice(d))
+    }
+    rwm := "rwm"
+    devPermissions = []specs.DeviceCgroup{
+      {
+        Allow:  true,
+        Access: &rwm,
+      },
+    }
+  } else {
+    for _, deviceMapping := range c.HostConfig.Devices {
+      d, dPermissions, err := getDevicesFromPath(deviceMapping)
+      if err != nil {
+        return err
+      }
+      devs = append(devs, d...)
+      devPermissions = append(devPermissions, dPermissions...)
+    }
+  }
+
+  s.Linux.Devices = append(s.Linux.Devices, devs...)
+  s.Linux.Resources.Devices = devPermissions
+  return nil
+}
+```

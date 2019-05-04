@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-nfs
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.13
+    volumeMounts:
+    - name: storage
+      mountPath: /data/storage
+    - name: scratch
+      mountPath: /data/scratch
+  volumes:
+  - name: storage
+    nfs:
+      path: /var/export1
+      server: 192.168.44.44
+  - name: scratch
+    nfs:
+      path: /var/export2
+      server: 192.168.44.44

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-hostname
+  labels:
+    demo-hostname: "true"
+spec:
+  hostname: pod-hostname
+  subdomain: pod-subdomain
+  containers:
+    - name: container
+      image: nginx:1.13
+      ports:
+        - containerPort: 80

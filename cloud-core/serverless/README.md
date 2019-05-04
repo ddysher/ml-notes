@@ -125,23 +125,23 @@ actively maintained, thus it can be seen as superceded by fnproject.
 
 ## fission
 
-ref: [fission](./fission)
+link: [fission](./fission)
 
 ## kubeless
 
-ref: [kubeless](./kubeless)
+link: [kubeless](./kubeless)
 
 ## knative
 
-ref: [knative](./knative)
+link: [knative](./knative)
 
 ## nuclio
 
-ref: [nuclio](./nuclio)
+link: [nuclio](./nuclio)
 
 ## openfaas
 
-ref: [openfaas](./openfaas)
+link: [openfaas](./openfaas)
 
 ## openwhisk
 

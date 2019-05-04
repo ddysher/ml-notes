@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-logs
+spec:
+  containers:
+  - name: debian
+    image: debian:jessie
+    command:
+    - /bin/sh
+    - -c
+    - yes "Some text" | head -n 8000000 && sleep 100
+    resources:
+      requests:
+        cpu: 100m
+        ephemeral-storage: 64Mi
+      limits:
+        cpu: 100m
+        ephemeral-storage: 64Mi

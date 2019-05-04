@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  clusterIP: None
+  selector:
+    run: "nginx"
+
+
+
+# #### Create two pods
+
+# ```
+# $ kubectl run --image nginx:1.13 --replicas 2 nginx
+# deployment "nginx" created
+
+# $ kubectl get pods --show-labels
+# NAME                     READY     STATUS    RESTARTS   AGE       LABELS
+# nginx-3853914729-263vm   1/1       Running   0          22s       pod-template-hash=3853914729,run=nginx
+# nginx-3853914729-nrkj0   1/1       Running   0          22s       pod-template-hash=3853914729,run=nginx
+# ```
+
+# #### Create headless service
+
+# Endpoints will be the above two pods, and since the headless service selects
+# them, two DNS A records will be returned.
+
+# ```
+# $ kubectl create -f headless-svc.yaml
+# service "app-service" created
+
+# $ kubectl get ep
+# NAME          ENDPOINTS                     AGE
+# app-service   172.17.0.3:80,172.17.0.6:80   26s
+# kubernetes    192.168.8.53:6443             16m
+
+# $ nslookup app-service.default.svc.cluster.local 10.0.0.10
+# Server:         10.0.0.10
+# Address:        10.0.0.10#53
+
+# Name:   app-service.default.svc.cluster.local
+# Address: 172.17.0.3
+# Name:   app-service.default.svc.cluster.local
+# Address: 172.17.0.6
+# ```
+
+# Inspecting endpoint; note that address doesn't have hostname.
+
+# ```
+# $ kubectl get ep app-service -o yaml
+# apiVersion: v1
+# kind: Endpoints
+# metadata:
+#   creationTimestamp: 2017-05-23T13:08:14Z
+#   name: app-service
+#   namespace: default
+#   resourceVersion: "1436"
+#   selfLink: /api/v1/namespaces/default/endpoints/app-service
+#   uid: e111648d-3fb8-11e7-9f56-8825937fa049
+# subsets:
+# - addresses:
+#   - ip: 172.17.0.3
+#     nodeName: 127.0.0.1
+#     targetRef:
+#       kind: Pod
+#       name: nginx-3853914729-nrkj0
+#       namespace: default
+#       resourceVersion: "1388"
+#       uid: c9745614-3fb8-11e7-9f56-8825937fa049
+#   - ip: 172.17.0.6
+#     nodeName: 127.0.0.1
+#     targetRef:
+#       kind: Pod
+#       name: nginx-3853914729-263vm
+#       namespace: default
+#       resourceVersion: "1386"
+#       uid: c9744fb3-3fb8-11e7-9f56-8825937fa049
+#   ports:
+#   - port: 80
+#     protocol: TCP
+# ```

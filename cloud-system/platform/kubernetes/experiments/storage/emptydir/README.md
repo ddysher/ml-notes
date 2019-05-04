@@ -1,0 +1,1 @@
+## Kubernetes simple emptydir example

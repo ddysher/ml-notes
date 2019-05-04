@@ -46,6 +46,8 @@ portion of the model.
 ## References
 
 - https://blog.algorithmia.com/exploring-the-deep-learning-framework-pytorch/
+- https://towardsdatascience.com/a-first-look-at-pytorch-1-0-8d3cce20b3ee
+- [pytorch-1-0-tracing-jit-and-libtorch-c-api-to-integrate-pytorch-into-nodejs](http://blog.christianperone.com/2018/10/pytorch-1-0-tracing-jit-and-libtorch-c-api-to-integrate-pytorch-into-nodejs/)
 
 # Dynamic Graph & Serialization
 

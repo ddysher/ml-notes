@@ -44,7 +44,7 @@ Components of selcon-core:
 Below is a list of terminologies found in seldon:
 - Model: A service to return predictions.
 - Router: A service to route requests to one of its children and receive feedback rewards for them.
-  User can use custom router implementation, or user existing implementation, e.g. ABTesting, see
+  User can use custom router implementation, or use existing implementation, e.g. ABTesting, see
   PredictiveUnitImplementation.
 - Combiner: A service to combine reponses from its children into a single response.
 - Transformer: A service to transform its input.

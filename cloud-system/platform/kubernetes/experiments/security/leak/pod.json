@@ -1,0 +1,26 @@
+{
+  "kind": "Pod",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "test-pod"
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "foo",
+        "image": "nginx",
+        "volumeMounts": [{
+          "name": "foo",
+          "mountPath": "/etc/foo",
+          "readOnly": true
+        }]
+      }
+    ],
+    "volumes": [{
+      "name": "foo",
+      "secret": {
+        "secretName": "test"
+      }
+    }]
+  }
+}

@@ -13,6 +13,7 @@
   - [Others](#others)
 - [Experiments](#experiments)
   - [Vision Models](#vision-models)
+  - [Text & sequences examples](#text--sequences-examples)
   - [Keras Specific](#keras-specific)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->

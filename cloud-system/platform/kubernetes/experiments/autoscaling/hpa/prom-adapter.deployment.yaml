@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prom-cm-adapter
+      containers:
+      - image: prom/prometheus:v2.2.0-rc.0
+        name: prometheus
+        args:
+        # point prometheus at the configuration that you mount in below
+        - --config.file=/etc/prometheus/prometheus.yml
+        ports:
+        # this port exposes the dashboard and the HTTP API
+        - containerPort: 9090
+          name: prom-web
+          protocol: TCP
+        volumeMounts:
+        # you'll mount your ConfigMap volume at /etc/prometheus
+        - mountPath: /etc/prometheus
+          name: prom-config
+      volumes:
+      # make your configmap available as a volume, so that you can
+      # mount in the Prometheus config from earlier
+      - name: config-volume
+        configMap:
+          name: prometheus

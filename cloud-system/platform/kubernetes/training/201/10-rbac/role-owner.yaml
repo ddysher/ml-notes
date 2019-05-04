@@ -1,0 +1,20 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1alpha1
+metadata:
+  name: namespace-owner
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1alpha1
+metadata:
+  name: namespace-owner
+subjects:
+  - kind: User
+    name: caicloud
+roleRef:
+  kind: Role
+  name: namespace-owner
+  apiGroup: rbac.authorization.k8s.io

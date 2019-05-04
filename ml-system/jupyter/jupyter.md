@@ -73,7 +73,7 @@ part that runs in browser, and the backend part listens for request (default :88
 communicates with backend using websocket; it is the backend part of the application that uses zeromq
 to talk to kernel. The backend is a tornado based server.
 
-<p align="center"><img src="./assets/notebook_components.png" height="360px" width="auto"></p>
+<p align="center"><img src="./assets/notebook_components.png" height="240px" width="auto"></p>
 
 The notebook server, not the kernel, is responsible for saving and loading notebooks, so you can edit
 notebooks even if you don't have the kernel for that language - you just won't be able to run code.
@@ -125,8 +125,10 @@ deyuandeng       86606   0.0  0.5  4306300  43920   ??  Ss    7:53PM   0:00.80 /
 Remote kernel means the kernel is running on a different machine than the notebook, and notebook
 talks to kernels via [jupyter kernel gateway](https://github.com/jupyter/kernel_gateway), or an
 advanced alternative [enterprise gateway](https://github.com/jupyter/enterprise_gateway). To use
-remote kernel, we also need to enable notebook [nb2kg](https://github.com/jupyter/nb2kg) extension,
-which has a great summary of how remote kernel works.
+remote kernel, we also need to enable notebook server extension [nb2kg](https://github.com/jupyter/nb2kg).
+The extension overrides the `/api/kernels/*` and `/api/kernelspecs` request handlers of the Notebook
+server, and proxies all requests for these resources to the Gateway. The project has a great summary
+of how remote kernel works.
 
 Internally, jupyter frontend sends a set of requests to backend proxy, e.g.
 ```
@@ -135,12 +137,13 @@ http://localhost:8888/api/kernels/{id}/restart
 ws://localhost:8888/api/kernels/{id}/channels?session_id={id}
 ```
 
-Normally, the jupyter backend proxy handles these requests directly. Now with nb2kg extension, it
+Normally, jupyter server backend handles these requests directly. Now with nb2kg extension, it
 doesn't handle them directly, but in turn proxies requests to kernel gateway (e.g. list available
 kernels).
 
 Note in the context of remote kernel, client/server (the jupyter notebook web application) still
-run locally, only the kernel runs on remote machine or cluster.
+run locally, only the kernel runs on remote machine or cluster. Kernel gateway and kernels can run
+on the same machine or different machines.
 
 Pay attention to the caveats:
 - When you enable the extension, all kernels run on (are managed by) the configured Gateway, instead
@@ -336,6 +339,7 @@ def load_jupyter_server_extension(nb_server_app):
 ```
 
 *References*
+
 - https://mindtrove.info/4-ways-to-extend-jupyter-notebook/
 
 # Jupyterhub
@@ -445,26 +449,32 @@ magic command.
 
 The [nteract](https://github.com/nteract/nteract) project is a dynamic tool to give you flexibility
 when writing code, exploring data, and authoring text to share insights about the data. nteract contains:
-- desktop application
+- desktop application (built with electron)
 - jupyter server extension
 - service for view and share notebooks
 
 For server extension, start by running:
 
 ```
+$ pip install nteract_on_jupyter
+$ jupyter serverextension enable nteract_on_jupyter
+
+$ jupyter nteract
+[I 16:46:39.959 NteractApp] JupyterLab extension loaded from /Users/deyuandeng/.pyenv/versions/3.6.7/lib/python3.6/site-packages/jupyterlab
+[I 16:46:39.959 NteractApp] JupyterLab application directory is /Users/deyuandeng/.pyenv/versions/3.6.7/share/jupyter/lab
+[I 16:46:39.961 NteractApp] nteract extension loaded from /Users/deyuandeng/.pyenv/versions/3.6.7/lib/python3.6/site-packages/nteract_on_jupyter
+[I 16:46:39.962 NteractApp] Serving notebooks from local directory: /Users/deyuandeng
+
 $ ps aux | grep python
 ...
 deyuandeng       88126   0.0  0.4  4291060  29700 s004  S+    8:05PM   0:00.88 /Users/deyuandeng/.pyenv/versions/3.6.7/bin/python3.6 /Users/deyuandeng/.pyenv/versions/3.6.7/bin/jupyter-nteract
 ```
 
-After opening a new notebook, the application will create a ipython kernel ready to interpret python
-code (just as regular jupyter notebook):
+After opening a new notebook, the application will create an ipython kernel ready to interpret python
+code. Essentially, this is similar to how notebook and jupyterlab works.
 
 ```
 ps aux | grep ipy
 ...
 deyuandeng       92446   0.0  0.5  4307068  44536   ??  Ss    9:09PM   0:00.86 /Users/deyuandeng/.pyenv/versions/3.6.7/bin/python3.6 -m ipykernel_launcher -f /Users/deyuandeng/Library/Jupyter/runtime/kernel-75862be0-8d25-4a18-b906-7cceb515f915.json
 ```
-
-From the above, we see that nteract 'overwrite' regular notebook server, and uses the same ipython
-kernel.

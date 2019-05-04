@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-label-1
+  labels:
+    environment: test
+    tier: backend
+    track: weekly
+spec:
+  containers:
+  - name: pod-with-label-1
+    image: ddysher/simple-backend
+  restartPolicy: Always

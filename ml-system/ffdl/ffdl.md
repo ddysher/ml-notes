@@ -199,4 +199,5 @@ evaluation_metrics:
 ```
 
 *References*
-- https://developer.ibm.com/code/patterns/deploy-and-use-a-multi-framework-deep-learning-platform-on-kubernetes/
+
+- [deploy-and-use-a-multi-framework-deep-learning-platform-on-kubernetes](https://developer.ibm.com/code/patterns/deploy-and-use-a-multi-framework-deep-learning-platform-on-kubernetes/)

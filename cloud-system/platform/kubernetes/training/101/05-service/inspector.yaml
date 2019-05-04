@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inspector
+  labels:
+    nginx: "true"
+spec:
+  containers:
+    - name: busybox
+      image: busybox:1.26
+      command:
+        - sleep
+        - "3600000000"

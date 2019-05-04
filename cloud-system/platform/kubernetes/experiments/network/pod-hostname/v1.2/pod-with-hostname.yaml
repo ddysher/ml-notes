@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-hostname
+  annotations:
+    pod.beta.kubernetes.io/hostname: pod-hostname
+    pod.beta.kubernetes.io/subdomain: pod-subdomain
+  labels:
+    demo-hostname: "true"
+spec:
+  containers:
+    - name: container
+      image: index.caicloud.io/ddysher/simple-backend
+      imagePullPolicy: Always
+      ports:
+        - containerPort: 8000

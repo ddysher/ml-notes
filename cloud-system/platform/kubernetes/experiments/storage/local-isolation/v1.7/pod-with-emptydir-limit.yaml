@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-emptydir-limit
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.13
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  volumes:
+  - name: data
+    emptyDir:
+      sizeLimit: 128Mi

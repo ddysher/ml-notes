@@ -1,0 +1,23 @@
+apiVersion: extensions/v1beta1
+kind: ReplicaSet
+metadata:
+  labels:
+    app: simple-replicaset
+  name: simple-replicaset
+spec:
+  replicas: 
+  selector:
+    matchLabels:
+      app: simple-replicaset
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: simple-replicaset
+    spec:
+      containers:
+      - image: nginx:1.13
+        name: nginx
+        ports:
+        - containerPort: 80
+          protocol: TCP

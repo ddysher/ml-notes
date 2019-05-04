@@ -3,7 +3,6 @@ kind: PersistentVolume
 metadata:
   name: pv-hostpath
 spec:
-  storageClassName: standard
   capacity:
     storage: 30Gi
   accessModes:

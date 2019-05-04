@@ -1,0 +1,17 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: nginx-with
+  annotations:
+spec:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: banana
+  containers:
+    - name: nginx
+      image: nginx:1.13
+
+
+# 1. explain how to find possible operator
+#   kubectl explain pod.spec.tolerations.operator

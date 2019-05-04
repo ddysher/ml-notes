@@ -1,0 +1,11 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: hostpath-class
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: kubernetes.io/fake-hostpath
+
+
+# 1. explain storageclass and multiple default classes.
+# 2. delete "standard (default)   kubernetes.io/host-path"
