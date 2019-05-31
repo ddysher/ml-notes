@@ -45,6 +45,7 @@
   - [Local Response Normalization](#local-response-normalization)
 - [Regularization](#regularization)
   - [L1 & L2 & Elastic Net](#l1--l2--elastic-net)
+  - [Data Augmentation](#data-augmentation)
   - [Dropout](#dropout)
   - [Earlystopping](#earlystopping)
   - [Max-Norm Regularization](#max-norm-regularization)
@@ -67,10 +68,8 @@
   - [Backpropagation](#backpropagation)
   - [Backpropagation Through Time (BPTT)](#backpropagation-through-time-bptt)
   - [Cross-Validation](#cross-validation)
-  - [Data Augmentation](#data-augmentation)
   - [Embedding](#embedding)
   - [Fine-Tuning](#fine-tuning)
-  - [Gaussian Process](#gaussian-process)
   - [Hyperparameters](#hyperparameters)
   - [Latent Space](#latent-space)
   - [Saturating](#saturating)
@@ -81,6 +80,8 @@
   - [Miscellaneous](#miscellaneous-1)
 - [ML Glossary: Vision](#ml-glossary-vision)
   - [Anchor Box](#anchor-box)
+  - [Processing: Binarization](#processing-binarization)
+  - [Processing: Grayscale](#processing-grayscale)
   - [Bounding-box Regression](#bounding-box-regression)
   - [Convolution: Feature Map](#convolution-feature-map)
   - [Convolution: 1x1 Convolution](#convolution-1x1-convolution)
@@ -102,7 +103,7 @@
   - [N-gram model](#n-gram-model)
   - [Skip-gram model](#skip-gram-model)
   - [Sequence to Sequence](#sequence-to-sequence)
-  - [Teacher Force](#teacher-force)
+  - [Teacher Forcing](#teacher-forcing)
 - [Math Glossary](#math-glossary)
   - [Bilinear Interpolation](#bilinear-interpolation)
   - [Gradient](#gradient)
@@ -168,10 +169,15 @@ logistic function, i.e. L = K = 1, x0 = 0
 
 ## Tanh
 
-Tanh is also sigmoidal (s-shaped). It is like logistic sigmoid but better. The range of the tanh
-function is from (-1 to 1).
+Tanh is also sigmoidal (s-shaped). It is like logistic sigmoid but better.
+- Having stronger gradients: since data is centered around 0, the derivatives are higher.
+- Avoiding bias in the gradients: the range of the tanh function is (-1, 1).
 
 <p align="center"><img src="./assets/tanh.png" height="240px" width="auto"></p>
+
+*References*
+
+- https://stats.stackexchange.com/questions/101560/tanh-activation-function-vs-sigmoid-activation-function
 
 ## ReLU
 
@@ -531,8 +537,10 @@ squared gradients.
 ## RMSprop
 
 RMSprop and Adadelta have both been developed independently around the same time stemming from the
-need to resolve Adagrad's radically diminishing learning rates. RMSprop stands for RMS propagation,
-it as well divides the learning rate by an exponentially decaying average of squared gradients.
+need to resolve Adagrad's radically diminishing learning rates. Similar to AdaDelta, the RMSProp
+algorithm fixes this by accumulating only the gradients from the most recent iterations (as opposed
+to all the gradients since the beginning of training), i.e. it divides the learning rate by an
+exponentially decaying average of squared gradients.
 
 Unlike AdaDelta, RMSprop requires an initial learning rate to be specified, but the general idea of
 RMSprop and Adadelta is very similar.
@@ -651,7 +659,7 @@ are evenly distributed.
 
 Definition:
 ```
-Precision = TP / (TP + TN)
+Precision = TP / (TP + FP)
 ```
 
 Precision means for all the items that we classify as one class, are indeed in that class.
@@ -872,6 +880,32 @@ selection in case we have a huge number of features.
 In practice, Ridge regression is a good default. If you suspect that only a few features are
 actually useful, then use Lasso or Elastic Net (Elastic Net is more perferable).
 
+## Data Augmentation
+
+Data augmentation consists of generating new training instances from existing ones, artificially
+boosting the size of the training set. This will reduce overfitting, making this a regularization
+technique. Common data augmentation techniques include:
+- mirroring, random cropping, rotation, etc
+- color shifting, or color distortion (PCA color shifting)
+
+Apart from avoiding overfitting, data augmentation can make network more robust. For example, in
+image classification problem, we can generate multiple images by shifting color, thus the network
+can tolerate test images with different contrast, etc.
+
+**Multi-crop at test time**
+
+Multi-crop at test time is a form of data augmentation that a model uses during test time, as
+opposed to most data augmentation techniques that run during training time.
+
+Broadly, the technique involves:
+- cropping a test image in multiple ways
+- using the model to classify these cropped variants of the test image
+- averaging the results of the model's many predictions
+
+Multi-crop at test time is a technique that some machine learning researchers use to improve accuracy
+at test time. The technique found popularity among some competitors in the ImageNet competitions,
+but it's generally not used in production system due to performance reasons.
+
 ## Dropout
 
 At each training stage, individual nodes are either dropped out of the net with probability 1-p
@@ -899,7 +933,7 @@ outperform models trained with other hyperparameters.
 
 Another regularization technique that is quite popular for neural networks is called max-norm
 regularization: for each neuron, it constrains the weights `w` of the incoming connections such
-that L2 norm of `w <= r`, where `r` is the max-norm hyperparameter.
+that L2 norm of `w` is less than or equal to `r`, where `r` is the max-norm hyperparameter.
 
 # Ensemble Methods
 
@@ -1101,7 +1135,7 @@ RNNs is that they have a "memory" which captures information about what has been
 
 In theory RNNs can make use of information in arbitrarily long sequences, but in practice they are
 limited to looking back only a few steps, due to the vanishing/exploding gradient problem. To solve
-the issue, there a couple variants of RNNs, notably, LSTM and GRU. Note vanishing gradients aren't
+the issue, there are many variants of RNNs, notably, LSTM and GRU. Note vanishing gradients aren't
 exclusive to RNNs. They also happen in deep Feedforward Neural Networks. It's just that RNNs tend
 to be very deep (as deep as the sentence length in our case), which makes the problem a lot more
 common. For more information on why this is the case, refer to [this post](http://www.wildml.com/2015/10/recurrent-neural-networks-tutorial-part-3-backpropagation-through-time-and-vanishing-gradients/).
@@ -1160,7 +1194,7 @@ Autoencoder can all be seen as a variant of it.
 
 ## Autoencoders
 
-Autoencoders (AE) are neural networks that aims to copy their inputs to their outputs. They work by
+Autoencoders (AE) are neural networks that aim to copy their inputs to their outputs. They work by
 encoding the input into a latent-space (or coding space) representation, and then decoding the output
 from this representation. The idea of "representation learning" is central to the generative models
 in GAN, RL, and all of deep learning.
@@ -1208,7 +1242,7 @@ learn useful patterns from the input, rather, it just simply learns to copy the 
 
 **Denoising Autoencoders**
 
-Denosing Autoencoder work by adding noise to its inputs, training it to recover the original,
+Denosing Autoencoders work by adding noise to its inputs, training it to recover the original,
 noise-free inputs. This prevents the autoencoder from simply copying the input.
 
 The noise can be pure Gaussian noise added to the inputs, or it can be randomly switched off inputs,
@@ -1219,7 +1253,7 @@ just like dropout. The latter is more common in practice.
 
 **Sparse Autoencoders**
 
-Sparse Autoencoder constraint the reconstruction of autoencoder by imposing a constraint in its
+Sparse Autoencoders constraint the reconstruction of autoencoder by imposing a constraint in its
 loss, e.g. using sparsity loss or L1 regularization.
 
 Sparsity loss is more involved:
@@ -1235,7 +1269,7 @@ Sparsity loss is more involved:
 
 **Variational Autoencoders**
 
-Variational Autoencoder are quite different from all the autoencoders, in particular:
+Variational Autoencoders are quite different from all the autoencoders, in particular:
 - They are *probabilistic autoencoders*, meaning that their outputs are partly determined by chance,
   even after training (as opposed to denoising autoencoders, which use randomness only during training).
   This means that using variational autoencoder, we cannot 'recover' the original input, but instead
@@ -1379,32 +1413,6 @@ expensive, but can fully make use of data.
 
 - http://scikit-learn.org/stable/modules/cross_validation.html
 
-## Data Augmentation
-
-Data augmentation consists of generating new training instances from existing ones, artificially
-boosting the size of the training set. This will reduce overfitting, making this a regularization
-technique. Common data augmentation techniques include:
-- mirroring, random cropping, rotation, etc
-- color shifting, or color distortion (PCA color shifting)
-
-Apart from avoiding overfitting, data augmentation can make network more robust. For example, in
-image classification problem, we can generate multiple images by shifting color, thus the network
-can tolerate test images with different contrast, etc.
-
-**Multi-crop at test time**
-
-Multi-crop at test time is a form of data augmentation that a model uses during test time, as
-opposed to most data augmentation techniques that run during training time.
-
-Broadly, the technique involves:
-- cropping a test image in multiple ways
-- using the model to classify these cropped variants of the test image
-- averaging the results of the model's many predictions
-
-Multi-crop at test time is a technique that some machine learning researchers use to improve accuracy
-at test time. The technique found popularity among some competitors in the ImageNet competitions,
-but it's generally not used in production system due to performance reasons.
-
 ## Embedding
 
 Embedding essntially means Representation. It is a transformation from discrete values/scalars to
@@ -1412,7 +1420,7 @@ dense real value vectors.
 
 Explanation one:
 
-> An embedding is a mapping of a discrete, categorical variable to a vector of continuous numbers.
+> An embedding is a mapping of a discrete, categorical variable to a vector of continuous numbers.
 > In the context of neural networks, embeddings are low-dimensional, learned continuous vector
 > representations of discrete variables. Neural network embeddings are useful because they can
 > reduce the dimensionality of categorical variables and meaningfully represent categories in the
@@ -1437,7 +1445,7 @@ Note that embedding is not just used in language models, for example, in face re
 embedding to represent faces and feed them to triplet loss function.
 
 There are a couple of ways to use embedding:
-- learn an embedding: this can be a slower, but tailors the model to a specific training dataset
+- learn an embedding: this can be slower, but tailors the model to a specific training dataset
   - embedding can be learned standalone and then used to other models
   - embedding can be learned along with neural network
 - reuse pre-trained embedding such as Word2Vec, GloVe, etc
@@ -1460,44 +1468,6 @@ and then updating these parameters based on the task at hand. For example, NLP a
 use pre-trained word embeddings like word2vec, and these word embeddings are then updated during
 training based for a specific task like Sentiment Analysis. As an other example, with autoencoder,
 we can use it to train layers in unsupervised fasion, which can then be used in supervised tasks.
-
-## Gaussian Process
-
-From wiki:
-
-> In probability theory and statistics, a Gaussian process is a stochastic process (a collection of
-> random variables indexed by time or space), such that every finite collection of those random
-> variables has a multivariate normal distribution, i.e. every finite linear combination of them
-> is normally distributed. The distribution of a Gaussian process is the joint distribution of all
-> those (infinitely many) random variables, and as such, it is a distribution over functions with
-> a continuous domain, e.g. time or space.
->
-> A machine-learning algorithm that involves a Gaussian process uses lazy learning and a measure of
-> the similarity between points (the kernel function) to predict the value for an unseen point from
-> training data. The prediction is not just an estimate for that point, but also has uncertainty
-> information - it is a one-dimensional Gaussian distribution (which is the marginal distribution at
-> that point).
-
-A gaussian process provides you with its best guess and an uncertainty for every point of your
-function. At the beginning the guess is not very good, it repeats back at you what you put in as the
-prior for the possible functions. As you add more data however you get a better and better estimate.
-All without having to make any assumptions about the shape of the function you are looking for. The
-important notes here are:
-- Every value in gaussian process follows a gaussian distribution. For example, if we are estimating
-  a function `f(x)`, with known value `f(x0)=a, f(x1)=b, etc`, then the value for an unseen point
-  `f(xi)` follows a normal distribution. If we sample the point from gaussian process and it returns
-  `f(xi)=4`, it means that `f(xi)` happens to be `4` for this particular sampling.
-- All points follow multivariate gaussian distribution, guided by a mean function (usually set to 0,
-  but others like linear function can be used as well), and a covariance function (also called kernel,
-  which describes how correlated each point is with every Periodic).
-- Gaussian process is commonly used in bayesian optimization as a surrogate model for more complex
-  functions. But note that gaussian process scale cubically with the number of observations, so it
-  is hard to apply it to many observations.
-
-*References*
-
-- https://katbailey.github.io/post/gaussian-processes-for-dummies/
-- https://zhuanlan.zhihu.com/p/27555501
 
 ## Hyperparameters
 
@@ -1699,6 +1669,25 @@ image.
 
 - https://github.com/Nikasa1889/HistoryObjectRecognition
 - https://tryolabs.com/blog/2018/01/18/faster-r-cnn-down-the-rabbit-hole-of-modern-object-detection/
+
+## Processing: Binarization
+
+Binarization is the process of converting a pixel image to a binary image, e.g. from [0,255] to 0
+and 1. Global binarization applies the same threshhold to all pixels while local binarization applies
+different threshhold per pixel.
+
+## Processing: Grayscale
+
+It's common to convert a color image into a grayscale image before feeding into an algorithm. There
+are many methods to convert it, e.g.
+- Max method
+- Average method
+- Weighted method or luminosity method
+
+For example, in average method, you just have to take the average of three colors, i.e.
+```
+Grayscale = (R + G + B) / 3
+```
 
 ## Bounding-box Regression
 
@@ -2076,18 +2065,17 @@ There is also a [seq2seq tensorflow library](https://github.com/google/seq2seq) 
 let's you define a seq2seq model using configuration file (YAML) without writting code. Some of the
 configuration include what cell to use (LSTM, GRU, etc), cell parameters, attention parameters, etc.
 
-## Teacher Force
+## Teacher Forcing
 
 In sequence prediction models, it's common to use the output from last time step as input for the
 next time step. For example, in language model, we use current predicted word as input for next step.
 
-However, this process, when applied to training, can make the model converge and instable. For
-instance, if the predicted word of current time step `t` is far off from the expected output, then
-using this predicted word as input for time step `t+1` will not work well for sure. If we wait until
-the whole sequence `T` is generated and backpropage the errors , the model convergence is quite
-slow.
+However, this process, when applied to training, can be unstable and slow to converge. For instance,
+if the predicted word of current time step `t` is far off from the expected output, then using this
+predicted word as input for time step `t+1` will not work well for sure. If we wait until the whole
+sequence `T` is generated and backpropage the errors , the model convergence is quite slow.
 
-Teacher force is used to solve the problem. It was originally described and developed as an
+Teacher forcing is used to solve the problem. It was originally described and developed as an
 alternative technique to backpropagation through time for training a recurrent neural network.
 
 > Teacher forcing works by using the actual or expected output from the training dataset at the
@@ -2220,7 +2208,7 @@ having two categories (male and female) and there is no intrinsic ordering to th
 
 An ordinal variable is similar to a categorical variable. The difference between the two is that there
 is a clear ordering of the variables. For example, suppose you have a variable, economic status, with
-three categories (low, medium and high).  In addition to being able to classify people into these three
+three categories (low, medium and high). In addition to being able to classify people into these three
 categories, you can order the categories as low, medium and high.
 
 High-cardinality variables are those with many unique categories.
@@ -2230,6 +2218,9 @@ High-cardinality variables are those with many unique categories.
 An interval variable is similar to an ordinal variable, except that the intervals between the values
 of the interval variable are equally spaced. For example, suppose you have a variable such as annual
 income that is measured in dollars, and we have three people who make $10,000, $15,000 and $20,000.
+The second person makes $5,000 more than the first person and $5,000 less than the third person, and
+the size of these intervals is the same. If there were two other people who make $90,000 and $95,000,
+the size of that interval between these two people is also the same ($5,000).
 
 *References*
 
