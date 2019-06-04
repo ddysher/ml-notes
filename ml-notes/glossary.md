@@ -16,6 +16,7 @@
   - [Cross Entropy Loss](#cross-entropy-loss)
   - [Hinge Loss](#hinge-loss)
   - [CTC Loss](#ctc-loss)
+  - [Focal Loss](#focal-loss)
   - [Triplet Loss](#triplet-loss)
 - [Optimization Function](#optimization-function)
   - [Batch Gradient Descent](#batch-gradient-descent)
@@ -54,6 +55,17 @@
   - [Bagging](#bagging)
   - [Boosting](#boosting)
   - [Stacking](#stacking)
+- [Convolution & Pooling](#convolution--pooling)
+  - [Feature Map](#feature-map)
+  - [1x1 Convolution](#1x1-convolution)
+  - [Depthwise Separable Convolution](#depthwise-separable-convolution)
+  - [Dilated Convolution](#dilated-convolution)
+  - [Grouped Convolution](#grouped-convolution)
+  - [Strided Convolution](#strided-convolution)
+  - [Transposed Convolution](#transposed-convolution)
+  - [RoI Pooling](#roi-pooling)
+  - [RoIAlign Pooling](#roialign-pooling)
+  - [SPP Pooling](#spp-pooling)
 - [Neural Network Architectural Paradigms](#neural-network-architectural-paradigms)
   - [Feedforward Neural Networks](#feedforward-neural-networks)
   - [Convolutional Neural Networks](#convolutional-neural-networks)
@@ -61,7 +73,7 @@
   - [Encoder-Decoder Architectures](#encoder-decoder-architectures)
   - [Autoencoders](#autoencoders)
   - [Generative Adversarial Networks](#generative-adversarial-networks)
-- [ML Glossary: General](#ml-glossary-general)
+- [Glossary: General](#glossary-general)
   - [Active Learning](#active-learning)
   - [Affine Layer](#affine-layer)
   - [Attention Mechanism](#attention-mechanism)
@@ -78,33 +90,25 @@
   - [Unsupervised Pretraining (semi-supervised)](#unsupervised-pretraining-semi-supervised)
   - [Vectorization (Flatten)](#vectorization-flatten)
   - [Miscellaneous](#miscellaneous-1)
-- [ML Glossary: Vision](#ml-glossary-vision)
+- [Glossary: Vision](#glossary-vision)
   - [Anchor Box](#anchor-box)
-  - [Processing: Binarization](#processing-binarization)
-  - [Processing: Grayscale](#processing-grayscale)
   - [Bounding-box Regression](#bounding-box-regression)
-  - [Convolution: Feature Map](#convolution-feature-map)
-  - [Convolution: 1x1 Convolution](#convolution-1x1-convolution)
-  - [Convolution: Depthwise Separable Convolution](#convolution-depthwise-separable-convolution)
-  - [Convolution: Dilated Convolution](#convolution-dilated-convolution)
-  - [Convolution: Grouped Convolution](#convolution-grouped-convolution)
-  - [Convolution: Strided Convolution](#convolution-strided-convolution)
-  - [Convolution: Transposed Convolution](#convolution-transposed-convolution)
+  - [Binarization](#binarization)
+  - [Grayscale](#grayscale)
   - [Image Pyramids](#image-pyramids)
   - [Multi-scale Training](#multi-scale-training)
   - [Non-max Suppression](#non-max-suppression)
   - [One-shot Learning](#one-shot-learning)
-  - [Pooling: RoI](#pooling-roi)
-  - [Pooling: SPP](#pooling-spp)
   - [Receptive Field](#receptive-field)
   - [Stride](#stride)
-- [ML Glossary: Sequence](#ml-glossary-sequence)
-  - [Bag of word model](#bag-of-word-model)
-  - [N-gram model](#n-gram-model)
-  - [Skip-gram model](#skip-gram-model)
+  - [Feature Detectors](#feature-detectors)
+- [Glossary: Sequence](#glossary-sequence)
+  - [Bag of Word](#bag-of-word)
+  - [N-gram](#n-gram)
+  - [Skip-gram](#skip-gram)
   - [Sequence to Sequence](#sequence-to-sequence)
   - [Teacher Forcing](#teacher-forcing)
-- [Math Glossary](#math-glossary)
+- [Glossary: Math](#glossary-math)
   - [Bilinear Interpolation](#bilinear-interpolation)
   - [Gradient](#gradient)
   - [Likelihood vs Probability](#likelihood-vs-probability)
@@ -335,9 +339,19 @@ is used for "maximum-margin" classification, most notably for support vector mac
 
 ## CTC Loss
 
-CTC Loss stands for Connectionist Temporal Classification Loss.
+CTC Loss stands for Connectionist Temporal Classification Loss. It is a loss function that is used
+to train Neural Networks, like Cross-Entropy and so on. It is used at problems, where having aligned
+data is an issue, like Speech Recognition or Text Recognition.
 
-TBD
+*References*
+
+- https://www.cs.toronto.edu/~graves/icml_2006.pdf
+- [intuitively-understanding-connectionist-temporal-classification](https://towardsdatascience.com/intuitively-understanding-connectionist-temporal-classification-3797e43a86c)
+
+## Focal Loss
+
+Focal loss is proposed in RetinaNet to solve the extrem imbalance betwee foreground class and
+background class in one-shot object detection approach.
 
 ## Triplet Loss
 
@@ -1067,6 +1081,188 @@ Network, and Adaboost.
 <p align="center"><img src="./assets/stacking.png" height="240px" width="auto"></p>
 <p align="center"><a href="https://github.com/ageron/handson-ml" style="font-size: 12px">Image Source: handson-ml</a></p>
 
+# Convolution & Pooling
+
+## Feature Map
+
+Feature map is the output of one filter applied to the previous layer's output. A conv. layer
+contains multiple filters, thus feature maps dimensions of a conv. layer can be summarized as:
+
+<p align="center"><img src="./assets/featuremap-summary.png" height="360px" width="auto"></p>
+<p align="center"><a href="http://cs231n.github.io/convolutional-networks" style="font-size: 12px">Image Source: CS231n</a></p>
+
+In its depth, the convolutional feature map has encoded all the information for the image while
+maintaining the location of the "things" it has encoded relative to the original image. For example,
+if there was a red square on the top left of the image and the convolutional layers activate for it,
+then the information for that red square would still be on the top left of the convolutional feature
+map.
+
+## 1x1 Convolution
+
+1x1 convolution is mainly used to reduce computational cost by decreasing channel depth, e.g. from
+28x28x16 to 28x28x8 (height x wight x #channel). In this example, the filter size is 1x1x16, and we
+have 8 filters. Because the third dimension of a filter must equal to input channel number (here 16),
+it is usually ignored when talking about convolution filter size.
+
+If filter depth is the same as input channel, e.g. in the above example, we use 16 filters, then the
+output is also 28x28x16, in such case, the purpose of 1x1 convolution is to learn non-linear features,
+though this is not commonly used.
+
+1x1 convolution is popularized by the Inception network. The following link has great summary on
+1x1 convolution. 1x1 convolution is also called "pointwise convolution".
+
+*References*
+
+- https://www.quora.com/How-are-1x1-convolutions-used-for-dimensionality-reduction/answer/Ajit-Rajasekharan
+
+## Depthwise Separable Convolution
+
+In traditional convolution, a filter has size `f * f * c`, where `f` is the width and height (typically
+set to the same value), and `c` is the size of input channels. For depthwise separable convolution,
+the filter is converted to a two-setp operations:
+- first a depthwise convolution, i.e. a total of `c` filters with size `f * f * 1` is applied to the
+  input feature maps to change the spatial dimension
+- second a pointwise convolution, which is actually a `1×1` convolution to change the channel dimension
+
+<p align="center"><img src="./assets/depthwise-sep-conv.png" height="380px" width="auto"></p>
+
+Compared with standard convolution, depthwise separable convolution can be seen as an operation at
+another end of a spectrum; that is, for standard convolution, spatial and channel convolutions are
+applied together, while for depthwise separable convolution, they are totally separate.
+
+Depthwise separable convolution is used in networks like Xception, MobileNets, etc.
+
+## Dilated Convolution
+
+Dilated Convolution is also called Atrous Convolutions, it introduces another parameter called
+`dilation rate` in order to expand the receptive field of a network while keeping the parameters
+low. It is commonly used in image segamentation because of this property.
+
+Consider a 3x3 convolution filter:
+- if dilation rate is equal to 1, it behaves like a standard convolution
+- if dilation rate is equal to 2, it can enlarge the kernel and makes it a 5x5 convolution filter
+- if dilation rate is equal to 3, it can enlarge the kernel and makes it a 7x7 convolution filter
+
+<p align="center"><img src="./assets/dilated-conv.png" height="180px" width="auto"></p>
+
+Each empty square is set to 0 and it's not trainable, e.g. for dilation rate 2, we have 16 zeros
+(5x5 - 3x3), and still 9 parameters.
+
+<p align="center"><img src="./assets/dilation.gif" height="200px" width="auto"></p>
+<p align="center"><a href="https://github.com/vdumoulin/conv_arithmetic" style="font-size: 12px">Image Source</a></p>
+
+## Grouped Convolution
+
+A group convolution is simply several convolutions, each taking a portion of the input channels.
+For example, if input feature map size is `c` and we have `g` groups/filters, then each filter
+group depth is `c/g`, assuming each filter group has the same number of channels.
+
+<p align="center">
+<img src="./assets/grouped-conv-old.svg" height="140px" width="auto">
+====>
+<img src="./assets/grouped-conv-new.svg" height="140px" width="auto">
+<p align="center"><a href="https://blog.yani.io/filter-group-tutorial" style="font-size: 12px">Image Source</a></p>
+</p>
+
+Group convolution is first used in AlexNet to combat low GPU memory, but is later proved to be
+useful in other networks, e.g. MobileNets, ResNeXt, etc.
+
+<p align="center"><img src="./assets/grouped-conv1.png" height="200px" width="auto"></p>
+<p align="center"><a style="font-size: 12px">Grouped convolution in AlexNet (2 groups)</a></p>
+
+<p align="center"><img src="./assets/grouped-conv2.png" height="200px" width="auto"></p>
+<p align="center"><a style="font-size: 12px">Grouped convolution in ResNeXt Block (Figure (c), 32 groups)</a></p>
+
+## Strided Convolution
+
+Strided Convolution refer to the case where convolution has stride value larger than 1. Strided
+Convolution can largely reduce spatial dimensions.
+
+In some networks (e.g. all convolutional nets, DCGAN, etc), strided convolution is used to replace
+deterministic spatial pooling function (such as maxpooling), to allow the network to learn its own
+spatial downsampling.
+
+<p align="center"><img src="./assets/no-padding-strides.gif" height="200px" width="auto"></p>
+<p align="center"><a href="https://github.com/vdumoulin/conv_arithmetic" style="font-size: 12px">Image Source</a></p>
+
+## Transposed Convolution
+
+Transposed Convolution is also called Fractionally Strided Convolutions.
+
+A transposed convolutional layer carries out a regular convolution but reverts its spatial
+transformation. Note Transposed Convolution is NOT Deconvolutions, which also reverts spatial
+transformation of a convolution operation.
+
+Following is `2D convolution with no padding, stride of 2 and kernel of 3`:
+
+<p align="center"><img src="./assets/transposed-conv.gif" height="200px" width="auto"></p>
+<p align="center"><a href="https://github.com/vdumoulin/conv_arithmetic" style="font-size: 12px">Image Source</a></p>
+
+Then a `Transposed 2D convolution with no padding, stride of 2 and kernel of 3`:
+
+<p align="center"><img src="./assets/transposed-conv-inv.gif" height="200px" width="auto"></p>
+<p align="center"><a href="https://github.com/vdumoulin/conv_arithmetic" style="font-size: 12px">Image Source</a></p>
+
+In GAN network with CNN, transposed convolution is commonly used for generator network to generate
+images.
+
+*References*
+
+- https://towardsdatascience.com/up-sampling-with-transposed-convolution-9ae4f2df52d0
+
+## RoI Pooling
+
+RoI stands for Region of Interest, it is used in object detection tasks to speed up training by reusing
+feature map from the convolutional network (in two stage networks like R-CNN).
+
+> The RoI pooling layer uses max pooling to convert the features inside any valid region of interest
+> into a small feature map with a fixed spatial extent of H × W (e.g., 7 × 7), where H and W are layer
+> hyper-parameters that are independent of any particular RoI. In this paper, an RoI is a rectangular
+> window into a conv feature map. Each RoI is defined by a four-tuple (r, c, h, w) that specifies its
+> top-left corner (r, c) and its height and width (h, w).
+>
+> RoI max pooling works by dividing the h × w RoI window into an H × W grid of sub-windows of approximate
+> size h/H × w/W and then max-pooling the values in each sub-window into the corresponding output
+> grid cell. Pooling is applied independently to each feature map channel, as in standard max
+> pooling. The RoI layer is simply the special-case of the spatial pyramid pooling layer used in
+> SPPnets in which there is only one pyramid level. We use the pooling sub-window calculation given
+> in SPPnets.
+
+Following is a single RoI pooling operation. In this case, the image size is `8x8`, RoI window
+`h x w = 5x7`, and fixed pooling size `H x W = 2x2`.
+
+<p align="center"><img src="./assets/roi-pooling.gif" height="360px" width="auto"></p>
+
+Following is a RoI pooling applied to a network. Refer to "Faster R-CNN Model" for more details.
+
+<p align="center"><img src="./assets/roi-pooling.png" height="360px" width="auto"></p>
+
+*References*
+
+- https://deepsense.ai/region-of-interest-pooling-explained/
+
+## RoIAlign Pooling
+
+RoIAlign pooling is proposed in Mask R-CNN to fix the misalignment problem in RoI Pooling. As we'll
+notice in the above RoI pooling, spatial information is lost due to align the RoI region, i.e. from
+`5x7` to `2x2`. RoIAlign uses bilinear interpolation to avoid error in rounding to avoid inaccuracies
+in detection and segmentation.
+
+Refer to "Mask R-CNN Model" for more details.
+
+## SPP Pooling
+
+SPP stands for Spatial Pyramid Pooling, it is a technique which allows CNNs to use input images of
+any size. Traditionally, most CNN networks operate on fixed input image size, e.g. 224x224. The
+limitation comes from fully connected layers: while convolutional layers can operate on any size,
+fully connected layers need fixed-size inputs.
+
+Refer to "SPPNet Model" for more details.
+
+*References*
+
+- https://www.shortscience.org/paper?bibtexKey=journals/corr/1406.4729
+
 # Neural Network Architectural Paradigms
 
 Below we list a couple of neural network architecture paradigms, they represent different design
@@ -1313,7 +1509,7 @@ Autoencoders (VAEs) and pixelCNN/pixelRNN, etc. Each model has its own tradeoffs
 - https://github.com/eriklindernoren/Keras-GAN
 - https://github.com/nashory/gans-awesome-applications
 
-# ML Glossary: General
+# Glossary: General
 
 ## Active Learning
 
@@ -1401,6 +1597,17 @@ Truncated BPTT stops backpropagating the errors after a fixed number of steps.
 *References*
 
 - [recurrent-neural-networks-tutorial-part-3-backpropagation-through-time-and-vanishing-gradients](http://www.wildml.com/2015/10/recurrent-neural-networks-tutorial-part-3-backpropagation-through-time-and-vanishing-gradients/)
+
+## Concatenation
+
+Concatenation is commonly used in machine learning, and often confused with add. For 2 tensors
+[a,b] and [c,d]:
+- concatenations of these 2 tensors means [a,b,c,d]
+- add of these 2 tensors means [a+c,b+d]
+
+For multi-dimention tensor, concatenation requires the dimension to concatenate, e.g. let's say the
+first tensor has dimensions `64x128x128` and the second tensor had dimensions `32x128x128`, then
+after concatenate along first dimension, the new tensor dimensions is `96x128x128`.
 
 ## Cross-Validation
 
@@ -1621,7 +1828,7 @@ high-variance model is likely to overfit the training data.
 - Multilabel is the case where we output multiple labels, e.g. in face recognition we label multiple faces
 - Multioutput is a generalization of multilabel where each label can have multiple class
 
-# ML Glossary: Vision
+# Glossary: Vision
 
 ## Anchor Box
 
@@ -1670,25 +1877,6 @@ image.
 - https://github.com/Nikasa1889/HistoryObjectRecognition
 - https://tryolabs.com/blog/2018/01/18/faster-r-cnn-down-the-rabbit-hole-of-modern-object-detection/
 
-## Processing: Binarization
-
-Binarization is the process of converting a pixel image to a binary image, e.g. from [0,255] to 0
-and 1. Global binarization applies the same threshhold to all pixels while local binarization applies
-different threshhold per pixel.
-
-## Processing: Grayscale
-
-It's common to convert a color image into a grayscale image before feeding into an algorithm. There
-are many methods to convert it, e.g.
-- Max method
-- Average method
-- Weighted method or luminosity method
-
-For example, in average method, you just have to take the average of three colors, i.e.
-```
-Grayscale = (R + G + B) / 3
-```
-
 ## Bounding-box Regression
 
 In object detection problem, by looking at an input region, **bounding-box regressor** (bbox
@@ -1707,132 +1895,24 @@ of object existence in the box. The classifier can also be class-specific or cla
 
 - https://github.com/Nikasa1889/HistoryObjectRecognition
 
-## Convolution: Feature Map
+## Binarization
 
-Feature map is the output of one filter applied to the previous layer's output. A conv. layer
-contains multiple filters, thus feature maps dimensions of a conv. layer can be summarized as:
+Binarization is the process of converting a pixel image to a binary image, e.g. from [0,255] to 0
+and 1. Global binarization applies the same threshhold to all pixels while local binarization applies
+different threshhold per pixel.
 
-<p align="center"><img src="./assets/featuremap-summary.png" height="360px" width="auto"></p>
-<p align="center"><a href="http://cs231n.github.io/convolutional-networks" style="font-size: 12px">Image Source: CS231n</a></p>
+## Grayscale
 
-In its depth, the convolutional feature map has encoded all the information for the image while
-maintaining the location of the "things" it has encoded relative to the original image. For example,
-if there was a red square on the top left of the image and the convolutional layers activate for it,
-then the information for that red square would still be on the top left of the convolutional feature
-map.
+It's common to convert a color image into a grayscale image before feeding into an algorithm. There
+are many methods to convert it, e.g.
+- Max method
+- Average method
+- Weighted method or luminosity method
 
-## Convolution: 1x1 Convolution
-
-1x1 convolution is mainly used to reduce computational cost by decreasing channel depth, e.g. from
-28x28x16 to 28x28x8 (height x wight x #channel). In this example, the filter size is 1x1x16, and we
-have 8 filters. Because the third dimension of a filter must equal to input channel number (here 16),
-it is usually ignored when talking about convolution filter size.
-
-If filter depth is the same as input channel, e.g. in the above example, we use 16 filters, then the
-output is also 28x28x16, in such case, the purpose of 1x1 convolution is to learn non-linear features,
-though this is not commonly used.
-
-1x1 convolution is popularized by the Inception network. The following link has great summary on
-1x1 convolution. 1x1 convolution is also called "pointwise convolution".
-
-*References*
-
-- https://www.quora.com/How-are-1x1-convolutions-used-for-dimensionality-reduction/answer/Ajit-Rajasekharan
-
-## Convolution: Depthwise Separable Convolution
-
-In traditional convolution, a filter has size `f * f * c`, where `f` is the width and height (typically
-set to the same value), and `c` is the size of input channels. For depthwise separable convolution,
-the filter is converted to a two-setp operations:
-- first a depthwise convolution, i.e. a total of `c` filters with size `f * f * 1` is applied to the
-  input feature maps to change the spatial dimension
-- second a pointwise convolution, which is actually a `1×1` convolution to change the channel dimension
-
-<p align="center"><img src="./assets/depthwise-sep-conv.png" height="380px" width="auto"></p>
-
-Compared with standard convolution, depthwise separable convolution can be seen as an operation at
-another end of a spectrum; that is, for standard convolution, spatial and channel convolutions are
-applied together, while for depthwise separable convolution, they are totally separate.
-
-Depthwise separable convolution is used in networks like Xception, MobileNets, etc.
-
-## Convolution: Dilated Convolution
-
-Dilated Convolution is also called Atrous Convolutions, it introduces another parameter called
-`dilation rate` in order to expand the receptive field of a network while keeping the parameters
-low. It is commonly used in image segamentation because of this property.
-
-Consider a 3x3 convolution filter:
-- if dilation rate is equal to 1, it behaves like a standard convolution
-- if dilation rate is equal to 2, it can enlarge the kernel and makes it a 5x5 convolution filter
-- if dilation rate is equal to 3, it can enlarge the kernel and makes it a 7x7 convolution filter
-
-<p align="center"><img src="./assets/dilated-conv.png" height="180px" width="auto"></p>
-
-Each empty square is set to 0 and it's not trainable, e.g. for dilation rate 2, we have 16 zeros
-(5x5 - 3x3), and still 9 parameters.
-
-<p align="center"><img src="./assets/dilation.gif" height="200px" width="auto"></p>
-<p align="center"><a href="https://github.com/vdumoulin/conv_arithmetic" style="font-size: 12px">Image Source</a></p>
-
-## Convolution: Grouped Convolution
-
-A group convolution is simply several convolutions, each taking a portion of the input channels.
-For example, if input feature map size is `c` and we have `g` groups/filters, then each filter
-group depth is `c/g`, assuming each filter group has the same number of channels.
-
-<p align="center">
-<img src="./assets/grouped-conv-old.svg" height="140px" width="auto">
-====>
-<img src="./assets/grouped-conv-new.svg" height="140px" width="auto">
-<p align="center"><a href="https://blog.yani.io/filter-group-tutorial" style="font-size: 12px">Image Source</a></p>
-</p>
-
-Group convolution is first used in AlexNet to combat low GPU memory, but is later proved to be
-useful in other networks, e.g. MobileNets, ResNeXt, etc.
-
-<p align="center"><img src="./assets/grouped-conv1.png" height="200px" width="auto"></p>
-<p align="center"><a style="font-size: 12px">Grouped convolution in AlexNet (2 groups)</a></p>
-
-<p align="center"><img src="./assets/grouped-conv2.png" height="200px" width="auto"></p>
-<p align="center"><a style="font-size: 12px">Grouped convolution in ResNeXt Block (Figure (c), 32 groups)</a></p>
-
-## Convolution: Strided Convolution
-
-Strided Convolution refer to the case where convolution has stride value larger than 1. Strided
-Convolution can largely reduce spatial dimensions.
-
-In some networks (e.g. all convolutional nets, DCGAN, etc), strided convolution is used to replace
-deterministic spatial pooling function (such as maxpooling), to allow the network to learn its own
-spatial downsampling.
-
-<p align="center"><img src="./assets/no-padding-strides.gif" height="200px" width="auto"></p>
-<p align="center"><a href="https://github.com/vdumoulin/conv_arithmetic" style="font-size: 12px">Image Source</a></p>
-
-## Convolution: Transposed Convolution
-
-Transposed Convolution is also called Fractionally Strided Convolutions.
-
-A transposed convolutional layer carries out a regular convolution but reverts its spatial
-transformation. Note Transposed Convolution is NOT Deconvolutions, which also reverts spatial
-transformation of a convolution operation.
-
-Following is `2D convolution with no padding, stride of 2 and kernel of 3`:
-
-<p align="center"><img src="./assets/transposed-conv.gif" height="200px" width="auto"></p>
-<p align="center"><a href="https://github.com/vdumoulin/conv_arithmetic" style="font-size: 12px">Image Source</a></p>
-
-Then a `Transposed 2D convolution with no padding, stride of 2 and kernel of 3`:
-
-<p align="center"><img src="./assets/transposed-conv-inv.gif" height="200px" width="auto"></p>
-<p align="center"><a href="https://github.com/vdumoulin/conv_arithmetic" style="font-size: 12px">Image Source</a></p>
-
-In GAN network with CNN, transposed convolution is commonly used for generator network to generate
-images.
-
-*References*
-
-- https://towardsdatascience.com/up-sampling-with-transposed-convolution-9ae4f2df52d0
+For example, in average method, you just have to take the average of three colors, i.e.
+```
+Grayscale = (R + G + B) / 3
+```
 
 ## Image Pyramids
 
@@ -1884,62 +1964,6 @@ with 10k images and 1k persons, and we need to train a network to verify a perso
 the solutions to the problem is to have the network learn a 'similarity' function: if the difference
 score `d(img1, img2)` is below a threshhold, then we output yes (same person), otherwise no.
 
-## Pooling: RoI
-
-RoI stands for Region of Interest, it is used in object detection tasks to speed up training by reusing
-feature map from the convolutional network (in two stage networks like R-CNN).
-
-> The RoI pooling layer uses max pooling to convert the features inside any valid region of interest
-> into a small feature map with a fixed spatial extent of H × W (e.g., 7 × 7), where H and W are layer
-> hyper-parameters that are independent of any particular RoI. In this paper, an RoI is a rectangular
-> window into a conv feature map. Each RoI is defined by a four-tuple (r, c, h, w) that specifies its
-> top-left corner (r, c) and its height and width (h, w).
->
-> RoI max pooling works by dividing the h × w RoI window into an H × W grid of sub-windows of approximate
-> size h/H × w/W and then max-pooling the values in each sub-window into the corresponding output
-> grid cell. Pooling is applied independently to each feature map channel, as in standard max
-> pooling. The RoI layer is simply the special-case of the spatial pyramid pooling layer used in
-> SPPnets in which there is only one pyramid level. We use the pooling sub-window calculation given
-> in SPPnets.
-
-Following is a single RoI pooling operation. In this case, h x w = 8 x 8 and H x W = 2 x 2.
-
-<p align="center"><img src="./assets/roi-pooling.gif" height="360px" width="auto"></p>
-
-Following is a RoI pooling applied to a network. Refer to "Faster R-CNN Model" for more details.
-
-<p align="center"><img src="./assets/roi-pooling.png" height="360px" width="auto"></p>
-
-*References*
-
-- https://deepsense.ai/region-of-interest-pooling-explained/
-
-## Pooling: SPP
-
-SPP stands for Spatial Pyramid Pooling, it is a technique which allows CNNs to use input images of
-any size. Traditionally, most CNN networks operate on fixed input image size, e.g. 224x224. The
-limitation comes from fully connected layers: while convolutional layers can operate on any size,
-fully connected layers need fixed-size inputs.
-
-<p align="center"><img src="./assets/spp.png" height="360px" width="auto"></p>
-
-It works by:
-- first, each feature map is pooled to become one value (grey), thus 256-d vector is formed.
-- then, each feature map is pooled to have 4 values (green), and form a 4×256-d vector.
-- similarly, each feature map is pooled to have 16 values (blue), and form a 16×256-d vector.
-- the above 3 vectors are concatenated to form a 1-d vector.
-- finally, this 1-d vector is going into FC layers as usual.
-
-Note the number of bins is fixed, e.g. in a 4-level SPPNet the pyramid can be `{6×6, 3×3, 2×2, 1×1}`,
-for a total of 50 bins. If the number of input feature maps to SPP layer is 256, then SPP layer
-will output 50x256 dimension vectors. Exactly how many pixels are located in each bin depends on
-the size of an image.
-
-*References*
-
-- [review-sppnet-1st-runner-up-object-detection-2nd-runner-up-image-classification-in-ilsvrc](https://medium.com/coinmonks/review-sppnet-1st-runner-up-object-detection-2nd-runner-up-image-classification-in-ilsvrc-906da3753679)
-- https://www.shortscience.org/paper?bibtexKey=journals/corr/1406.4729
-
 ## Receptive Field
 
 The receptive field is defined as the region in the input space that a particular CNN's feature is
@@ -1968,9 +1992,29 @@ Image representation in computer memory is a bit complicated for efficiency purp
 - the total number of bytes occupied by a pixel in memory is called pixel stride
 - the number of bytes occupied in memory by a line of an image is called line stride
 
-# ML Glossary: Sequence
+## Feature Detectors
 
-## Bag of word model
+List of conventional feature detectors:
+- MSER
+- SIFT
+- SURF
+- FAST
+- SWT
+- etc
+
+**MSER**
+
+MSER, MSER-Maximally Stable Extremal Regions, is a feature detector which incrementally steps through
+the intensity range of the input image to detect stable regions.
+
+*References*
+
+- https://blog.csdn.net/Dby_freedom/article/details/80872393
+- https://www.mathworks.com/help/vision/ref/detectmserfeatures.html
+
+# Glossary: Sequence
+
+## Bag of Word
 
 A bag-of-words model, or BoW for short, is a way of extracting features from text for use in
 modeling, such as with machine learning algorithms. It is called a "bag" of words, because any
@@ -2003,7 +2047,7 @@ Or a list if each word has an index into a vocabulary:
 - https://en.wikipedia.org/wiki/Bag-of-words_model
 - https://machinelearningmastery.com/gentle-introduction-bag-words-model/
 
-## N-gram model
+## N-gram
 
 An n-gram is a contiguous sequence of n items from a given sample of text or speech. While bag-of-word
 model is an orderless document representation, the n-gram model can store this spatial information.
@@ -2033,7 +2077,7 @@ N-gram representation is a list below:
 - https://en.wikipedia.org/wiki/N-gram
 - https://en.wikipedia.org/wiki/Bag-of-words_model
 
-## Skip-gram model
+## Skip-gram
 
 Skip-grams are a generalization of n-grams in which the components (typically words) need not be
 consecutive in the text under consideration, but may leave gaps that are skipped over. A k-skip-n-gram
@@ -2118,7 +2162,7 @@ class SimpleRNN(nn.Module):
 - https://machinelearningmastery.com/teacher-forcing-for-recurrent-neural-networks/
 - https://gist.github.com/spro/ef26915065225df65c1187562eca7ec4
 
-# Math Glossary
+# Glossary: Math
 
 ## Bilinear Interpolation
 
