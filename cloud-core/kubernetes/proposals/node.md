@@ -3,8 +3,15 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [KEPs](#keps)
-  - [KEP-0009: efficient node heartbeat](#kep-0009-efficient-node-heartbeat)
-  - [KEP-0014: runtime class](#kep-0014-runtime-class)
+  - [efficient node heartbeat](#efficient-node-heartbeat)
+  - [runtime class](#runtime-class)
+  - [runtime class scheduling](#runtime-class-scheduling)
+  - [pod overhead](#pod-overhead)
+  - [pid limiting](#pid-limiting)
+  - [compute device assignment](#compute-device-assignment)
+  - [topology manager](#topology-manager)
+  - [ephemeral containers](#ephemeral-containers)
+  - [startup probe](#startup-probe)
 - [Feature & Design](#feature--design)
   - [accelerator monitoring](#accelerator-monitoring)
   - [projected volume, aka, all-in-one volume](#projected-volume-aka-all-in-one-volume)
@@ -15,6 +22,7 @@
   - [container and pod resource limits consideration](#container-and-pod-resource-limits-consideration)
   - [container runtime interface (cri)](#container-runtime-interface-cri)
   - [dynamic kubelet configuration](#dynamic-kubelet-configuration)
+  - [envvar configmap](#envvar-configmap)
   - [kubelet eviction](#kubelet-eviction)
   - [pod resource management in kubelet](#pod-resource-management-in-kubelet)
   - [node allocatable resources](#node-allocatable-resources)
@@ -33,46 +41,65 @@
 
 > A collection of proposals, designs, features in Kubernetes node.
 
+- [SIG-Node KEPs](https://github.com/kubernetes/enhancements/blob/master/keps/sig-node)
+- [SIG-Node Proposals](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node)
 - [SIG-Node Community](https://github.com/kubernetes/community/tree/master/sig-node)
 
 # KEPs
 
-## KEP-0009: efficient node heartbeat
+## efficient node heartbeat
 
-*Date: 09/08/2018, v1.11, design*
+- *Date: 09/08/2018, v1.11, design*
+- *Date: 06/08/2019, v1.14, beta*
 
 Right now node heartbeat is done via updating Node API object, which poses significant load on etcd.
 The goal of the proposal is to reduce etcd size by making node heartbeat cheaper.
 
-A new API object `Lease` will be introdued in `coordination.k8s.io` group. With this new API in
-place, we will change Kubelet so that:
-- Kubelet is periodically computing NodeStatus every 10s (at it is now), but that will be independent
-  from reporting status
-- Kubelet is reporting NodeStatus if:
-  - there was a meaningful change in it (initially we can probably assume that every change is
-    meaningful, including e.g. images on the node)
-  - or it didn’t report it over last node-status-update-period seconds (initially, this will be
-    40s, then change to 1min or even longer)
-- Kubelet creates and periodically updates its own Lease object and frequency of those updates is
-  independent from NodeStatus update frequency.
+A new API object `Lease` will be introdued in the `coordination.k8s.io` group. There are quite a few
+alternatives, e.g.
+- Add a new API object named `Heartbeat`: This is intuitive, but lacks generalization. Conversely
+  `Lease` is more common and can be used in other components as well.
+- Use existing `Event` API: Event is already used in Kubernetes and it's relatively low priority
+  API in Kubernetes. In addition, using Event is not ideal for some use cases, like deleting all
+  events, just watching heartbeat event, etc.
+- Split `Node` object: This is complicated and not a very generic solution.
+
+Now with this new API in place, Kubelet will be changed so that:
+- It periodically computes NodeStatus every 10s (at it is now), but that will be independent from
+  reporting status.
+- It reports NodeStatus if:
+  - there was a meaningful change in it,
+  - or it didn’t report it over last `node-status-update-period` seconds (initially, this will be 40s).
+- It creates and periodically updates its own `Lease` object and frequency of those updates is
+  independent from NodeStatus update frequency (initially, this will be 10s).
 
 The key point here is that both `Lease` and `Node` will be updated via Kubelet, and both are treated
-as a signal of node being healthy. Separate the update can significantly reduce etcd load, since if
-we only use `Node` API, we will update all fields, even though some of them are not very important,
-e.g. pulling a new image will change `Node` object, resulting a full update in etcd.
+as a signal of node being healthy. Separating the update can significantly reduce etcd load. As
+mentioned above, if we only use `Node` API, we will update all fields, even though some of them are
+not very important, e.g. pulling a new image will change `Node` object, resulting a full update in
+etcd.
+
+Starting from v1.14, we'll find node lease objects in dedicated namespace:
+
+```
+$ kubectl get lease --namespace kube-node-lease
+NAME       HOLDER     AGE
+minikube   minikube   4m29s
+```
 
 *References*
 
-- [KEP link](https://github.com/kubernetes/community/blob/baabac7525462911bac0dab87237d9a55a93f3f2/keps/sig-node/0009-node-heartbeat.md)
+- [efficient node heartbeat KEP link](https://github.com/kubernetes/enhancements/blob/bd79505d22a96315a1abf1e70f49535822694116/keps/sig-node/0009-node-heartbeat.md)
 
-## KEP-0014: runtime class
+## runtime class
 
-*Date: 09/08/2018, v1.11, design*
+- *Date: 09/08/2018, v1.11, design*
+- *Date: 06/07/2019, v1.14, beta*
 
 The KEP adds a new API object `RuntimeClass`, which is a new cluster-scoped resource that surfaces
 container runtime properties to the control plane. RuntimeClasses are assigned to pods through a
 runtimeClass field on the PodSpec. This provides a new mechanism for supporting multiple runtimes
-in a cluster and/or node. The Goal is to:
+in a cluster and/or node. The goal is to:
 - Provide a mechanism for surfacing container runtime properties to the control plane
 - Support multiple runtimes per-cluster, and provide a mechanism for users to select the desired runtime
 
@@ -140,17 +167,304 @@ spec:
           protocol: TCP
 ```
 
-Implementatin wise, Kubelet will watch for all `RuntimeClass` and pod requests. Once resolved, it
-will pass `RuntimeClass.spec.runtimeHandler` to CRI, which is responsible to interpret different
-runtime class.
+Implementation wise, Kubelet will watch and cache all `RuntimeClass` resources. When a new pod is
+created, Kubelet will try to resolve pod request against local cache. Once resolved, it will pass
+`RuntimeClass.Spec.RuntimeHandler` to CRI (via RunPodSandboxRequest), which is then responsible to
+interpret different runtime class. Pay attention that Kubelet only talks to one CRI implementation
+registered upon start - it is up to the CRI implementation to understand `runtimehandler` and manages
+various runtime.
 
-Note that Kubelet only talks to one CRI implementation, it is up to CRI to manage various runtime.
-For example, Mirantis has a [cri-proxy](https://github.com/Mirantis/criproxy) designed to support
-multiple CRI implementation.
+*Update on Kubernetes v1.14*
+
+RuntimeClass reaches beta at Kubernetes v1.14, and all major CRI implementation (e.g. containerd,
+cri-o) now supports `RuntimeHandler`, i.e. support running multiple container runtime based on
+configuration.
+
+The API changes from CRD to internal API, with slight modifications:
+
+```yaml
+apiVersion: node.k8s.io/v1beta1  # RuntimeClass is defined in the node.k8s.io API group
+kind: RuntimeClass
+metadata:
+  name: myclass  # The name the RuntimeClass will be referenced by
+  # RuntimeClass is a non-namespaced resource
+handler: myconfiguration  # The name of the corresponding CRI configuration
+```
 
 *References*
 
-- [KEP link](https://github.com/kubernetes/community/blob/a5515a371e380886a56aaa5843df27f21d9e892e/keps/sig-node/0014-runtime-class.md)
+- [runtime class KEP link](https://github.com/kubernetes/enhancements/blob/bd79505d22a96315a1abf1e70f49535822694116/keps/sig-node/runtime-class.md)
+
+## runtime class scheduling
+
+- *Date: 06/08/2019, v1.14, design*
+- *Date: 09/29/2019, v1.16, beta*
+
+As of Kubernetes v1.14, RuntimeClass assumes the cluster is homogenous with regards to RuntimeClasses,
+i.e. each node supports the same set of RuntimeClasses. For heterogeneous clusters, cluster operator
+and Pod authors should agree on a set of labels and taints, such that Pod authors can set appropriate
+labels and tolerations when using a RuntimeClass.
+
+Runtime class scheduling aims at automating the process by adding a `Scheduling` field in `RuntimeClass`:
+
+```go
+type Scheduling struct {
+    // nodeSelector lists labels that must be present on nodes that support this
+    // RuntimeClass. Pods using this RuntimeClass can only be scheduled to a
+    // node matched by this selector. The RuntimeClass nodeSelector is merged
+    // with a pod's existing nodeSelector. Any conflicts will cause the pod to
+    // be rejected in admission.
+    // +optional
+    NodeSelector map[string]string
+
+    // tolerations adds tolerations to pods running with this RuntimeClass.
+    // +optional
+    Tolerations []corev1.Toleration
+}
+```
+
+Cluster operator is responsible to create RuntimeClasss with correct `Scheduling`. A new RuntimeClass
+admission controller (built-in, enabled by default) will merge the labels and tolerations to whichever
+Pod using the RuntimeClass. Follow on, the scheduling process is the same as before, i.e. scheduler
+goes through predicates and priority to select Node for the Pod.
+
+**Alternatives**
+
+There are some design choices that are excluded in the proposal:
+- scheduler predicate
+- native RuntimeClass reporting
+- use SchedulerPolicy
+
+Scheduler predicate means adding a predicate into scheduler, which is responsible to resolve RuntimeClass
+and filter node that match Pod request.
+
+Native RuntimeClass reporting means adding runtime class information into Node status. This is not
+flexible as indicated in the proposal, since we would need another scheduling mechanism (instead of
+simply use existing label, taints constructs).
+
+SchedulerPolicy is yet another KEP, using which will make RuntimeClass much more complex.
+
+*References*
+
+- [runtime class scheduling KEP link](https://github.com/kubernetes/enhancements/blob/bd79505d22a96315a1abf1e70f49535822694116/keps/sig-node/runtime-class-scheduling.md)
+
+## pod overhead
+
+- *Date: 06/07/2019, v1.14, design*
+
+Historically, Kubernetes only supports linux container based runtimes. Now with the introduction of
+RuntimeClass (as well as standardization like CRI, OCI), a Kubernetes cluster can have multiple
+runtimes, and quite a few of them have non-negligible overhead. For example, for VM-based runtime,
+the memory overhead can be several hundred megabytes.
+
+Pod overhead proposes to include such overhead information into Pod spec, which is automatically
+injected using RuntimeController admission controller, who finds the information from RuntimeClass
+object. Cluster admin is responsible to set this overhead value in RuntimeClass.
+
+The KEP touches many components in Kubernetes:
+- Add the new API (.Overhead) to the pod spec and RuntimeClass
+- Update the RuntimeClass admission controller to merge the overhead into the pod spec
+- Update the ResourceQuota admission controller to account for overhead
+- Update the scheduler to account for overhead
+- Update the kubelet (admission, eviction, cgroup limits) to handle overhead
+
+This is related to [pod resource management in kubelet](#pod-resource-management-in-kubelet) in
+turns of linux containers.
+
+*References*
+
+- [pod overhead KEP link](https://github.com/kubernetes/enhancements/blob/bd79505d22a96315a1abf1e70f49535822694116/keps/sig-node/20190226-pod-overhead.md)
+
+## pid limiting
+
+- *Date: 06/09/2019, v1.14, alpha & beta*
+
+PID limiting proposes to limit PID usages per Pod, which includes:
+- Pod-to-Pod Isolation
+- Node-to-Pod Isolation
+
+Pod-to-Pod isolation means isolating PID usages across Pods, which is acheived via adding a new flag
+`pod-max-pids` in Kubelet: if this flag is set, then Pod's PID cgroups will include the limit; if
+not set, then Node's allocatable PIDs will be set. For example, if the value is 300, then each Pod
+can't use more than 300 processes.
+
+However, since PIDs can be overcommitted, Pod-to-Pod isolation can't protect node components (e.g.
+Kubelet, Docker) from running out of PIDs. Therefore, similar to cpu and memory, the Node-to-Pod
+isolation is proposed to fix the problem by reserving certain amount of PIDs to system components.
+That is, if `pod-max-pids` is not set, then allocatable PIDs (usually much larger, e.g. 30000) will
+be added to top PID cgroups parenting all Pods, i.e. the top `kubepods` cgroups level.
+
+*References*
+
+- [pid limiting KEP link](https://github.com/kubernetes/enhancements/blob/bd79505d22a96315a1abf1e70f49535822694116/keps/sig-node/20190129-pid-limiting.md)
+- https://kubernetes.io/blog/2019/04/15/process-id-limiting-for-stability-improvements-in-kubernetes-1.14/
+
+## compute device assignment
+
+- *Date: 07/28/2019, v1.15, beta*
+
+The core of the KEP is to provide external agents a Pod(Container)-to-Devices mapping, i.e. which
+container is using which device. The target use case is to ease metrics observation for device
+vendors. Kubelet is changed to expose a gRPC endpoint:
+
+```
+$ sudo ls /var/lib/kubelet/pod-resources
+kubelet.sock
+```
+
+Summary for alternative approaches:
+- Using existing kubelet gRPC service: not flexible
+- Add field to Pod status: since device binding is just local information, it doesn't justify API change
+- Use the Kubelet Device Manager Checkpoint file: requires additional implementation like versioning
+- Add a field to the Pod Spec (Before starting the pod, the kubelet writes the assigned Spec.ComputeDevices
+  back to the pod spec, and wait for Pod updates): similar to Pod status, device binding doesn't justify
+  API change; in addition, setting pod spec introduces pod startup latency
+
+*References*
+
+- [compute device assignment KEP link](https://github.com/kubernetes/enhancements/blob/abdc87efbe04b1a83ec5c4f220d7af465ec4d458/keps/sig-node/compute-device-assignment.md)
+
+## topology manager
+
+- *Date: 08/20/2019, v1.15, design*
+
+Topology manager is a new component in Kubelet that helps to find the best **socket affinity** for
+containers based on inputs from other components like cpu manager and device manager. It's important
+to note that topology manager, as outlined in the KEP, only takes care of socket affinity, i.e.
+choosing the best socket to run a container. This means that inter-device connectivity (e.g. nvidia
+Nvlink), HugePages, CNI are out of scope for this KEP. However, the authors makes sure that the
+design will not block implementation of those features in the future.
+
+The implementation is a *two phase topology coherence protocol*, the brief workflow is:
+- Topology manager implements the Kubelet admission interface, i.e. Kubelet will call `Admit` method
+  on topology manager before actually running a Pod.
+- In side of the `Admit` method, topology manager will call `GetTopologyHints` of each `HintProvider`
+  (for each container). Current HintProvider includes [cpu manager](https://github.com/kubernetes/kubernetes/blob/release-1.16/pkg/kubelet/cm/cpumanager/topology_hints.go)
+  and [device manager](https://github.com/kubernetes/kubernetes/pull/80570). The device plugin API
+  has been updated to include [topology information](https://github.com/kubernetes/kubernetes/blob/9a5b87a58b33b4a8e97ad0bf157c569060431f60/pkg/kubelet/apis/deviceplugin/v1beta1/api.proto#L100)
+  when reporting device.
+- When starting the container, Kubelet will call cpu manager and device manager to allocate cpu and
+  device, which will then call `GetAffinity` method of topology manager to make the decision. This
+  is why the protocol is called "two phase" - topology manager first calls cpu/device manager, which
+  then calls topology manager.
+
+*References*
+
+- [topology manager KEP link](https://github.com/kubernetes/enhancements/blob/f701ae66b466a9c8e6789b7c5135924949617ea7/keps/sig-node/0035-20190130-topology-manager.md)
+- https://github.com/kubernetes/enhancements/issues/693
+
+## ephemeral containers
+
+- *Date: 09/21/2019, v1.16, alpha*
+
+Ephemeral Containers are implemented in the core API group. While the primary purpose use case is
+debugging, it's intended as a general purpose construct for running a short-lived container in a pod,
+e.g. running an automated security audits scripts for some pods. Ephemeral Containers supercedes the
+previous "troubleshooting running pods" proposal.
+
+The new API is added to Pod spec:
+
+```go
+type PodSpec struct {
+	...
+	// List of user-initiated ephemeral containers to run in this pod.
+	// This field is alpha-level and is only honored by servers that enable the EphemeralContainers feature.
+	// +optional
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	EphemeralContainers []EphemeralContainer `json:"ephemeralContainers,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,31,rep,name=ephemeralContainers"`
+}
+
+type PodStatus struct {
+	...
+	// Status for any Ephemeral Containers that running in this pod.
+	// This field is alpha-level and is only honored by servers that enable the EphemeralContainers feature.
+	// +optional
+	EphemeralContainerStatuses []ContainerStatus `json:"ephemeralContainerStatuses,omitempty" protobuf:"bytes,12,rep,name=ephemeralContainerStatuses"`
+}
+```
+
+A kubectl command `kubectl debug` will be added to allow easy troubleshooting (which is not part of
+the KEP). In short, `kubectl exec` runs a process in a container, `kubectl debug` runs a container
+in a pod.
+
+```
+kubectl debug -c debug-shell --image=debian target-pod -- bash
+```
+
+Following is a quick summary:
+
+> An EphemeralContainer is a temporary container that may be added to an existing pod for user-initiated
+> activities such as debugging. Ephemeral containers have no resource or  scheduling guarantees, and
+> they will not be restarted when they exit or when a pod is removed or restarted. If an ephemeral
+> container causes a pod to exceed its resource  allocation, the pod may be evicted.
+>
+> Ephemeral containers may not be added by directly updating the pod spec. They must be added via the
+> pod's ephemeralcontainers subresource, and they will appear in the pod spec once added.
+
+Ephemeral Containers have several characteristics and limitations:
+- A new Pod subresource `/ephemeralcontainers` is added to CRUD Ephemeral Containers.
+- Admission plugins will be updated to guard `/ephemeralcontainers`.
+- When supported by a runtime, multiple clients can attach to a single ephemeral container (i.e.
+  `kubectl attach`) and share the terminal.
+- Resources are not allowed for Ephemeral Containers. Ephemeral Containers use spare resources already
+  allocated to the pod. There are no limits on the number of Ephemeral Containers that can be created
+  in a pod, but exceeding a pod's resource allocation may cause the pod to be evicted.
+- Ephemeral Containers have no additional privileges above what is available to any `v1.Container`.
+  It's the equivalent of configuring an shell container in a pod spec except that it is created on
+  demand.
+- Ephemeral Containers will not be restarted.
+- Ephemeral Containers will not be killed automatically unless the pod is destroyed. Ephemeral Containers
+  will stop when their command exits, such as exiting a shell.
+- SecurityContext (Capabilities, Privileged, RunAsXXX, etc) is not allowed for ephemeral containers.
+- Ephemeral Containers may not be modified or deleted (for alpha)
+- Creative usage of Ephemeral Containers should be limited, for example, it might be tempting to use
+  Ephemeral Containers to perform critical but asynchronous functions like backing up a production
+  database, but this would be dangerous because Ephemeral Containers have no execution guarantees
+  and could even cause the database pod to be evicted by exceeding its resource allocation.
+
+*References*
+
+- [ephemeral containers KEP link](https://github.com/kubernetes/enhancements/blob/26dc9a946876b32f3f2b41a58edf4e35a2751f9f/keps/sig-node/20190212-ephemeral-containers.md)
+
+## startup probe
+
+- *Date: 09/29/2019, v1.16, alpha*
+
+The KEP proposes a new probe: startup probe, to holdoff all other probes until the Container starts.
+The startup probe has the same structure as other probes. In addition, the `ContainerStatus` struct
+will include a `Started` boolean to indicate the status.
+
+If this probe fails, the Pod will be restarted, just as if the livenessProbe failed. In the following
+example, the container has 5min to start:
+
+```yaml
+ports:
+- name: liveness-port
+  containerPort: 8080
+  hostPort: 8080
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: liveness-port
+  failureThreshold: 1
+  periodSeconds: 10
+
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: liveness-port
+  failureThreshold: 30
+  periodSeconds: 10
+```
+
+An alternative proposal is to include a field `InitializationFailureThreshold` in liveness probe and
+readiness probe, but this makes the API a bit complicated.
+
+*References*
+
+- [liveness holdoff KEP link](https://github.com/kubernetes/enhancements/blob/13a778c6a4a84dbde9e691e8dcf930a6eaa7ca51/keps/sig-node/20190221-livenessprobe-holdoff.md)
 
 # Feature & Design
 
@@ -329,7 +643,7 @@ env:
         fieldPath: metadata.namespace
 ```
 
-With the proposal, we are able to use annotation as well:
+With the proposal, we are able to use annotation (and labels) as well:
 
 ```yaml
 apiVersion: v1
@@ -493,15 +807,17 @@ $ sudo cat /var/lib/dockershim/sandbox/3b1bb0665c026c7598cf1fed545b67aeaa9ca7584
 
 ## cri windows support
 
-*Date 03/09/2018, v1.9, beta*
+- *Date 03/09/2018, v1.9, beta*
+- *Date 06/09/2019, v1.14, stable*
 
-The proposal (cri: windows container configuration) isstraightforward: oci specification defines
+The proposal (cri: windows container configuration) is straightforward: oci specification defines
 platform specific configurations, including linux, windows, solaris, etc. However, kubelet runtime
 only supports linux, which means configurations like resources in pod spec will not be translated
 into oci configs when starting windows container. The proposal aims to solve the problem by changing
 kubelet runtime to be more modular and respect platform specific configs.
 
-Support for windows container is alpha in v1.5 and beta in v1.9.
+When setting appropriate networking, Pods from Windows and Linux container can access each other.
+To properly schedule Pods, user must add correct node selector in Pod spec, or use taints & tolerations.
 
 *References*
 
@@ -626,12 +942,7 @@ includes setting up networking for a pod (e.g., allocating an IP). Once the PodS
 individual containers can be created/started/stopped/removed independently. To delete the pod,
 kubelet will stop and remove containers before stopping and removing the PodSandbox.
 
-*References*
-
-- http://blog.kubernetes.io/2016/12/container-runtime-interface-cri-in-kubernetes.html
-- https://kubernetes.io/docs/tasks/debug-application-cluster/crictl/
-- https://github.com/kubernetes/community/blob/master/contributors/devel/container-runtime-interface.md
-- https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/container-runtime-interface-v1.md
+The [cri api](https://github.com/kubernetes/cri-api) has been promoted to a top-level project.
 
 **[cri networking](https://github.com/kubernetes/community/blob/master/contributors/devel/kubelet-cri-networking.md)**
 
@@ -675,6 +986,13 @@ There are two basic requirements proposed in the doc:
 - Ask the runtime to decorate the logs in a format that kubelet understands. This way runtime can
   leverage existing `kubectl logs`.
 
+*References*
+
+- [container runtime interface design doc](https://github.com/kubernetes/community/blob/f784eb4ab861bd46e1919c502325ce1714ba920b/contributors/design-proposals/node/container-runtime-interface-v1.md)
+- http://blog.kubernetes.io/2016/12/container-runtime-interface-cri-in-kubernetes.html
+- https://kubernetes.io/docs/tasks/debug-application-cluster/crictl/
+- https://github.com/kubernetes/community/blob/master/contributors/devel/container-runtime-interface.md
+
 ## dynamic kubelet configuration
 
 - *Date: 08/12/2016, v1.3, design*
@@ -702,10 +1020,23 @@ spec:
       kubeletConfigKey: kubelet
 ```
 
+*Update on 06/26/2019, v1.15, beta*
+
+As of v1.15, Kubelet can be configured via three approaches:
+- flags
+- dynamic configuration
+- local config file
+
+Flags takes precedence over dynamic configuration, which takes precedence over local config file.
+As mentioned above, to use dynamic configuration, users need to update node spec to include the
+`configSource` field, and pass `--dynamic-config-dir` for config checkpoint; to use local config
+file, users need to pass `--config` file about the location of the config file. Both approaches use
+the same config format, which is defined in `pkg/kubelet/apis/config/`.
+
 *References*
 
 - [dynamic kubelet configuration proposal](https://github.com/kubernetes/community/blob/57d8f190f6e9c0d64af74456a13bf13f6bd45750/contributors/design-proposals/node/dynamic-kubelet-configuration.md)
-- [related issue discussion](https://github.com/kubernetes/kubernetes/pull/29459)
+- https://github.com/kubernetes/kubernetes/pull/29459
 - https://kubernetes.io/blog/2018/07/11/dynamic-kubelet-configuration/
 
 ## envvar configmap
@@ -839,8 +1170,15 @@ Motivations are outlined in the design doc; basically, pod level cgroups account
 resource usage to pod instead of node itself, and enables better resource share in pod, etc. As of now,
 cgroups are per container instead of pod.
 
-Implementation-wise, there is a top level cgroups for Burstable and BestEffort Pods, and Guaranteed Pods
-fall under root cgroups.
+Implementation-wise, there is a top level cgroups for Burstable and BestEffort Pods for each cgroup
+subsystem, and Guaranteed Pods fall under root cgroups, e.g.
+
+```
+$ ls /sys/fs/cgroup/cpu/kubepods/besteffort/
+...
+$ ls /sys/fs/cgroup/cpu/kubepods/burstable/
+...
+```
 
 *References*
 
@@ -861,53 +1199,55 @@ OS system daemons and kubernetes daemons. The feature is enabled in 1.6.
 
 ## troubleshooting running pods
 
-*Date: 05/07/2017, v1.7*
+- *Date: 05/07/2017, v1.7, design*
+- *Date: 03/08/2018, v1.10, design*
+- *Date: 09/21/2019, v1.15, deprecated*
 
-This proposal seeks to add first class support for troubleshooting by creating a mechanism to execute
-a shell or other troubleshooting tools inside a running pod without requiring that the associated
-container images include such tools.
+This proposal seeks to add first class support for troubleshooting by creating a mechanism to
+execute a shell or other troubleshooting tools inside a running pod without requiring that the
+associated container images include such tools.
+
+The feature is still under discussion during v1.9 development cycle and will not make it to v1.10.
+The implementation plan is updated in the proposal. The new plan is to extend '/exec' endpoint for
+debugging; if it's a debugging request, kubelet will run a sidecar container based on input
+parameter.
+
+In v1.15, the troubleshooting running pods proposal has moved to the Ephemeral Containers KEP.
 
 *References*
 
 - [pod troubleshooting proposal](https://github.com/verb/kubernetes/blob/7b939b781eea8e06460f380abedb2e1170a49c84/docs/proposals/pod-troubleshooting.md)
-
-*Update on 03/08/2018, v1.10*
-
-The feature is still under discussion during k8s 1.9 development cycle and will not make it to k8s
-1.10. The implementation plan is updated in the proposal. The new plan is to extend '/exec' endpoint
-for debugging; if it's a debugging request, kubelet will run a sidecar container based on input
-parameter.
-
 - [updated pod troubleshooting proposal](https://github.com/kubernetes/community/blob/88553fdf661a3645e419bd3fb654dbe1d8480333/contributors/design-proposals/node/troubleshoot-running-pods.md)
 
 ## configurable pod process namespace sharing
 
-*Date: 03/09/2018, v1.10, alpha*
+- *Date: 03/09/2018, v1.10, alpha*
+- *Date: 08/05/2018, v1.11, alpha*
+- *Date: 10/04/2018, v1.12, beta*
 
 Adding support for PID namespace is easy at first glance; however, sharing PID namespace in a pod
-breaks the assumption in docker that container has init process 1; with PID namespace, PID 1 always
-goes to infra container. The feature was enabled by default in 1.7, but because of issue, it was
+breaks the assumption in docker that container has init process 1 - with PID namespace, PID 1 always
+goes to infra container. The feature was enabled by default in 1.7, but because of the issue, it was
 disabled in 1.8.
+
+Due to the above reasons, in v1.12, a new boolean field `ShareProcessNamespace` is added to pod spec
+`Pod.Spec.SecurityContext`, where each Pod can individually enable sharing PID namespace within Pod.
+The feature is scheduled for beta in v1.12.
 
 *References*
 
-- [design proposal](https://github.com/kubernetes/community/blob/b5c1e2c14ef3c6384b52e3de908131e687029072/contributors/design-proposals/node/pod-pid-namespace.md)
+- [pod pid namespace design proposal](https://github.com/kubernetes/community/blob/b5c1e2c14ef3c6384b52e3de908131e687029072/contributors/design-proposals/node/pod-pid-namespace.md)
 - https://github.com/kubernetes/kubernetes/issues/48937
 - https://www.ianlewis.org/en/almighty-pause-container
 
-*update on 08/05/2018, v1.11, alpha*
-
-Due to the above reasons, a new key 'ShareProcessNamespace' is added to pod spec "Pod.Spec.SecurityContext",
-where each Pod can individually enable sharing PID namespace within Pod. The feature is scheduled
-for beta in v1.12.
-
 ## plugin watcher
 
-*Date: 08/05/2018, v1.11, alpha*
+- *Date: 08/05/2018, v1.11, alpha*
+- *Date: 12/16/2018, v1.13, stable*
 
 In Kubelet, resource registration has different approaches:
-- for device plugin, it will find kubelet gRPC server in a canonical path and call its register method
-- for csi, kubelet discovers csi drivers with path: /var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.sock
+- for device plugin, plugin will find kubelet gRPC server in a canonical path and call its register method
+- for csi, kubelet discovers csi drivers with path: `/var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.sock`
 
 The proposal aims to solve the problem and standarizes plugin discovery mechanism. The preferred
 approach is: Kubelet watches new plugins under a canonical path through inotify, specifically:
@@ -917,7 +1257,9 @@ approach is: Kubelet watches new plugins under a canonical path through inotify,
 
 *References*
 
+- [plugin watcher proposal](https://github.com/kubernetes/community/blob/f784eb4ab861bd46e1919c502325ce1714ba920b/contributors/design-proposals/node/plugin-watcher.md)
 - https://github.com/kubernetes/community/pull/2369
+- https://github.com/kubernetes/kubernetes/pull/73891
 
 # Workflow
 
@@ -1022,8 +1364,8 @@ goroutines to manage node status & pod eviction: monitorNodeStatus & doEvictionP
   from evictor by monitorNodeStatus. The delete request sent to Kubernetes will follow normal Pod
   deletion flow, i.e. update pods.deletionTimestamp, start grace period, etc.
 
-Note about interaction with application controllers, e.g. replicaset. For application controllers,
-Pods that are considered a managed replica based on the following method:
+Note about interaction with workload controllers, e.g. replicaset. For workload controllers, Pods
+that are considered a managed replica based on the following method:
 
 ```go
 func IsPodActive(p *v1.Pod) bool {
@@ -1046,9 +1388,9 @@ Note about parameters, currently (by default):
 
 *Date: 09/23/2018, v1.11*
 
-Kubernetes has a bounch of plugins, due to legacy reasons, they are not consistent in various
-aspects. NB. there is a plugin watcher proposal (see above) to unify the registration mechanism,
-but it's still under development as of v1.11.
+Kubernetes has a bounch of plugins, due to legacy reasons, they are not consistent in many aspects.
+There is a plugin watcher proposal (see above) to unify the registration mechanism, but it's under
+development as of v1.11.
 
 **device plugin, v1beta1**
 

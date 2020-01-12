@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Pod
-metadata:
-  name: svc-lister
-spec:
-  restartPolicy: Never
-  containers:
-    - name: svc-lister
-      image: index.caicloud.io/caicloud/svc-lister

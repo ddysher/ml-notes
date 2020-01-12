@@ -309,6 +309,8 @@ In [2]: sc = pyspark.SparkContext(appName="app")
 2018-11-26 09:12:07 WARN  NativeCodeLoader:62 - Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
 Setting default log level to "WARN".
 To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+
+In [3]:
 ```
 
 Running the line `pyspark.SparkContext` will [start a JVM process](https://github.com/apache/spark/blob/v2.3.0/python/pyspark/java_gateway.py)

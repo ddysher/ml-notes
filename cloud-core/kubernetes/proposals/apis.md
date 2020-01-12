@@ -2,6 +2,10 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
+- [KEPs](#keps)
+  - [watch bookmark](#watch-bookmark)
+  - [immutable fields](#immutable-fields)
+  - [less object serializations](#less-object-serializations)
 - [Feature & Design](#feature--design)
   - [node/pod api pattern](#nodepod-api-pattern)
   - [controllerref](#controllerref)
@@ -14,11 +18,12 @@
   - [admission control webhook bootstrapping](#admission-control-webhook-bootstrapping)
   - [auditing](#auditing)
   - [monitoring kubelet configuration](#monitoring-kubelet-configuration)
-  - [self-hosting authz webhook](#self-hosting-authz-webhook)
+  - [self-hosting authz webhook, aka. dynamic auth](#self-hosting-authz-webhook-aka-dynamic-auth)
   - [alternate representations of api resources](#alternate-representations-of-api-resources)
-  - [server get](#server-get)
+  - [server side get](#server-side-get)
   - [api chunking](#api-chunking)
   - [event compression](#event-compression)
+  - [admission control plugin configuration](#admission-control-plugin-configuration)
   - [admission control plugin - EventRateLimit](#admission-control-plugin---eventratelimit)
   - [master count lease reconciler](#master-count-lease-reconciler)
   - [client structure and library proposal](#client-structure-and-library-proposal)
@@ -38,14 +43,163 @@
 
 > A collection of proposals, designs, features in Kubernetes APIs.
 
-- [SIG-API-Machinery Community](https://github.com/kubernetes/community/tree/master/sig-api-machinery)
+- [SIG-API-Machinery KEPs](https://github.com/kubernetes/enhancements/blob/master/keps/sig-api-machinery)
 - [SIG-API-Machinery Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/api-machinery)
+- [SIG-API-Machinery Community](https://github.com/kubernetes/community/tree/master/sig-api-machinery)
+
+# KEPs
+
+## watch bookmark
+
+- *Date: 08/28/2019, v1.15, alpha*
+- *Date: 09/29/2019, v1.16, beta*
+
+Background:
+
+> Every Kubernetes object has a `resourceVersion` field representing the version of that resource as
+> stored in the underlying database. The `resourceVersion` is a direct mapping from `Revision`, which
+> is a global incremental count in etcd. When retrieving a collection of resources (either namespace
+> or cluster scoped), the response from the server will contain a `resourceVersion` value that can be
+> used to initiate a watch against the server. The server will return all changes (creates, deletes,
+> and updates) that occur after the supplied `resourceVersion`.
+>
+> https://kubernetes.io/docs/reference/using-api/api-concepts/
+
+As mentioned in the KEP, the `BOOKMARK` event type is useful when watcher is observing only a small
+percentage of changes. For example, in the following watch, watcher is interested in pods with label
+`name=example`:
+
+```
+$ curl "http://localhost:8080/api/v1/namespaces/default/pods?watch=1&labelSelector=name%3Dexample"
+```
+
+Now if we create pod with expected label:
+
+```
+$ kubectl run nginx --image=nginx:1.13 --generator=run-pod/v1 -l "name=example"
+```
+
+We'll receive the following events in the above watch (note the resourceVersion here is 207235):
+
+```sh
+# $ curl "http://localhost:8080/api/v1/namespaces/default/pods?watch=1&labelSelector=name%3Dexample"
+{"type":"ADDED","object":{"kind":"Pod","apiVersion":"v1","metadata":{"name":"nginx1","namespace":"default","selfLink":"/api/v1/namespaces/default/pods/nginx1","uid":"b0ffb5a9-c99c-11e9-9954-260db7d50b8e","resourceVersion":"207232","creationTimestamp":"2019-08-28T14:04:03Z",
+{"type":"MODIFIED","object":{"kind":"Pod","apiVersion":"v1","metadata":{"name":"nginx1","namespace":"default","selfLink":"/api/v1/namespaces/default/pods/nginx1","uid":"b0ffb5a9-c99c-11e9-9954-260db7d50b8e","resourceVersion":"207235","creationTimestamp":"2019-08-28T14:04:03Z",
+```
+
+Then if we create pod without the label, or anything else related to pods that's not particularly
+interested to the watch, nothing will be returned to it. However, resourceVersion will now be larger
+than 207235, say 221000.
+
+The problem here is that if watch restarts, it will sends resourceVersion 207235 to apiserver, which
+will pose unnecessary load on apiserver since we now have to process all events from 207235 to 221000
+again, even if we know that there's nothing interesting to the watcher in between.
+
+The `BOOKMARK` event is added to effectively send resourceVersion 221000 to watcher, so that in case
+of restart, watcher can start from 221000, instead of 207235, reducing load on apiserver.
+
+*References*
+
+- [watch bookmark KEP link](https://github.com/kubernetes/enhancements/blob/310c6ce25124e701a8e47f0221f3afd47084a505/keps/sig-api-machinery/20190206-watch-bookmark.md)
+- https://github.com/kubernetes/enhancements/issues/956
+- https://github.com/kubernetes/kubernetes/issues/73585
+
+## immutable fields
+
+- *Date: 11/03/2019, v1.16, design*
+
+A lot of fields in Kubernetes objects tend to be immutable after creation, but right now Kubernetes
+lacks a way to declaratively specify that fields are immutable. Users either have to depend on the
+validation for built-in types, or build custom validation using webhook.
+
+To solve the problem, the KEP proposes "immutable fields" with the following goals:
+- extend the CRD API to be able to specify immutability for fields.
+- publish the immutability field of CRDs via OpenAPI as vendor extension.
+- verify immutability on CR update and patch requests.
+- propose a source code marker to be consumed by kubebuilder and openapi-gen.
+- define the semantics of immutability
+- the mechanism must be extensible
+
+**Marker**
+
+Marker is simple, just like `+required` and `+optional`, we can use code comment. The comment will
+be recognized by kubebuilder and openapi-gen.
+
+```go
+// The name can not be changed after creation.
+// +immutable
+Name string
+
+// The list of containers can not change AT ALL after creation.
+// No single field in existing containers can be changed, added or deleted,
+// no new containers can be added, no existing container can be removed.
+// +immutable
+Containers []Containers
+```
+
+Note fields like `metadata` is not allowed to mark as immutable.
+
+**OpenAPI**
+
+Either it's generated from code marker or hand-written, the immutable field will eventually be
+represented in OpenAPI. Kubernetes uses two OpenAPI vendor extensions (i.e. custom properties) for
+this purpose and defines two extensions: `x-kubernetes-immutable` and `x-kubernetes-immutable-key`.
+
+The `x-kubernetes-immutable` vendor extension is set in the spec of fields, arrays and objects. It
+recursively applies to the whole subtree. Note if it's set to an array, it means the array itself
+is not mutable (e.g. delete the array), but the items in the array can be modified.
+
+The `x-kubernetes-immutable-keys` vendor extension is used for objects with the concetp of "keys",
+e.g. `sets`, `map`. With additional information from other vendor extensions like `x-kubernetes-list-type: map`
+and `x-kubernetes-list-map-keys: ["name"]`, it can express more use cases, e.g.
+- keys are mutable but values can be changed
+- order of the keys are not important
+
+**Process Chain**
+
+Following is the process chain in apiserver. Note the validation will take effect for mutating
+webhook as well.
+
+> This process is meant to happen right before the update validation and after mutating, but before validating webhooks, and only run on updates.
+
+<p align="center"><img src="./assets/20191001-crd-immutability-pipeline.png" height="320px" width="auto"></p>
+
+*References*
+
+- [immutable fields KEP link](https://github.com/kubernetes/enhancements/blob/c71c21d2f0f4875ce8f84663190c61bd2beb64e2/keps/sig-api-machinery/20190603-immutable-fields.md)
+
+## less object serializations
+
+- *Date: 12/14/2019, v1.17*
+
+kube-apiserver consumes considerable CPU cycles due to repeatedly serialize the same objects in API
+requests. To be specific,
+
+> The main reason for that is that for every watcher (Endpoints are being watched by kube-proxy
+> running on every one) kube-apiserver independently serializes (which also requires deep-copy)
+> every single object being send via this watch.
+>
+> While this problem is extremely visible for watch, the situation looks the same for regular
+> GET/LIST operations - reading the same object N times will result in serializing that N times
+> independently.
+
+To solve the problem, the KEP proposes to add a `CacheableObject` interface, implementation of which
+allows it to cache different serializations to avoid performing the same serialization multiple times.
+
+The implementation provides the following gains:
+- eliminating kube-apiserver unresponsiveness in case of write of a single huge Endpoints object
+- ~5% lower cpu-usage
+- ~15% less memory allocations
+
+*References*
+
+- [less object serializations KEP link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-api-machinery/20190329-less-object-serializations.md)
 
 # Feature & Design
 
 ## node/pod api pattern
 
-*Date: 03/25/2015*
+- *Date: 03/25/2015*
 
 The following pattern is being applied to all our API objects, currently most complete in Node and
 Pod. Lots of early discussion about "states" (or lack thereof) was in #1365. Note that no field is
@@ -78,7 +232,7 @@ of the status.
 
 ## controllerref
 
-*Date: 05/02/2017, v1.6*
+- *Date: 05/02/2017, v1.6*
 
 The main goal of ControllerRef (controller reference) is to solve the problem of controllers that
 fight over controlled objects due to overlapping selectors. A secondary goal of ControllerRef is to
@@ -87,17 +241,18 @@ controllers will adopt resources with matching labels and no ControllerRef field
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/controller-ref.md)
+- [controller ref design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/controller-ref.md)
 
 ## thirdpartyresource -> customresourcedefinition
 
-*Date: 07/16/2017, v1.7*
+- *Date: 07/16/2017, v1.7*
+- *Date: 04/01/2018, v1.10, beta*
 
 In kubernetes 1.7, third party resource is marked as deprecated in favor of custom resource definition
 (TPR -> CRD). The fundamental concepts behind the two are the same. CRD is proposed as part of the
 process to move TPR to beta, which aims to solve multiple issues with TPR, e.g.
 - support non-namespace resource
-- clearer custom resource naming (avoid tpr name conflicts)
+- clearer custom resource naming (avoid TPR name conflicts)
 - help remove extensions apigroup from kubernetes
 - register short name for custom resources
 - fix deleting custom resources while deleting namespace
@@ -112,7 +267,7 @@ example, custom resource validation.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/506d09c218d39a7d7eba344c6ddddd53e0a91019/contributors/design-proposals/thirdpartyresources.md>)
+- [thirdpartyresources design doc](https://github.com/kubernetes/community/blob/506d09c218d39a7d7eba344c6ddddd53e0a91019/contributors/design-proposals/thirdpartyresources.md>)
 - https://github.com/kubernetes/community/pull/708
 - https://github.com/kubernetes/features/issues/95
 - https://kubernetes.io/docs/concepts/api-extension/custom-resources
@@ -127,10 +282,13 @@ CRD by deleting all the CRs associated with it.
 
 ## custom resource subresource
 
-*Date: 05/08/2018, v1.10, alpha*
+- *Date: 05/08/2018, v1.10, alpha*
+- *Date: 06/22/2019, v1.15, beta*
 
 The design aims to support `/status` and `/scale` subresources, two common patterns established in
-Kubernetes API. For status, when set,
+Kubernetes API.
+
+For status, when set,
 - apiserver exposes a `/status` subresource for the custom resource
 - PUT requests to the `/status` subresource take a custom resource object, and ignore changes to anything except the status stanza
 - PUT/POST/PATCH requests to the custom resource ignore changes to the status stanza
@@ -143,7 +301,7 @@ scale path.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/4f9bc566a98517dbb6d1abc8ebc6cf2351e38e18/contributors/design-proposals/api-machinery/customresources-subresources.md)
+- [customresources subresources design doc](https://github.com/kubernetes/community/blob/4f9bc566a98517dbb6d1abc8ebc6cf2351e38e18/contributors/design-proposals/api-machinery/customresources-subresources.md)
 - https://blog.openshift.com/kubernetes-custom-resources-grow-up-in-v1-10/
 
 ## custom resource validation
@@ -161,22 +319,16 @@ preclude implementation of other validation methods, e.g. validation webhook.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/4f9bc566a98517dbb6d1abc8ebc6cf2351e38e18/contributors/design-proposals/api-machinery/customresources-validation.md)
+- [custom resource validation design doc](https://github.com/kubernetes/community/blob/4f9bc566a98517dbb6d1abc8ebc6cf2351e38e18/contributors/design-proposals/api-machinery/customresources-validation.md)
 
 ## custom resource versioning
 
-*Date: 05/08/2018, v1.10, design*
+- *Date: 05/08/2018, v1.10, design*
+- *Date: 07/25/2018, v1.11, alpha*
+- *Date: 06/22/2019, v1.15, beta*
 
-The goal of the design is to support versioning in CRD. As of now (kubernetes 1.10),
-there can be only a single version in CRD.
-
-*References*
-
-- [design doc](https://github.com/kubernetes/community/blob/4f9bc566a98517dbb6d1abc8ebc6cf2351e38e18/contributors/design-proposals/api-machinery/customresources-versioning.md)
-
-*Update on 07/25/2018, v1.11*
-
-CRD versioning is supported in Kubernetes v1.11, here is a [tutorial](https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/).
+The goal of the design is to support versioning in CRD. As of kubernetes 1.10, there can be only a
+single version in CRD. Later, CRD versioning is supported in Kubernetes v1.11, here is a [tutorial](https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definition-versioning/).
 Following is the CRD golang type as of Kubernetes v1.11.
 
 ```go
@@ -224,11 +376,76 @@ type CustomResourceDefinitionVersion struct {
 }
 ```
 
+In Kubernetes v1.15, `version` is deprecated and changed to `version` to support multiple versions,
+and it's possible to convert different versions using conversion webhook.
+
+```yaml
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  # name must match the spec fields below, and be in the form: <plural>.<group>
+  name: crontabs.example.com
+spec:
+  # group name to use for REST API: /apis/<group>/<version>
+  group: example.com
+  # list of versions supported by this CustomResourceDefinition
+  versions:
+  - name: v1beta1
+    # Each version can be enabled/disabled by Served flag.
+    served: true
+    # One and only one version must be marked as the storage version.
+    storage: true
+    # Each version can define it's own schema when there is no top-level
+    # schema is defined.
+    schema:
+      openAPIV3Schema:
+        properties:
+          hostPort:
+            type: string
+  - name: v1
+    served: true
+    storage: false
+    schema:
+      openAPIV3Schema:
+        properties:
+          host:
+            type: string
+          port:
+            type: string
+  conversion:
+    # a Webhook strategy instruct API server to call an external webhook for any conversion between custom resources.
+    strategy: Webhook
+    # webhookClientConfig is required when strategy is `Webhook` and it configure the webhook endpoint to be
+    # called by API server.
+    webhookClientConfig:
+      service:
+        namespace: default
+        name: example-conversion-webhook-server
+        path: /crdconvert
+      caBundle: <pem encoded ca cert that signs the server cert used by the webhook>
+  # either Namespaced or Cluster
+  scope: Namespaced
+  names:
+    # plural name to be used in the URL: /apis/<group>/<version>/<plural>
+    plural: crontabs
+    # singular name to be used as an alias on the CLI and for display
+    singular: crontab
+    # kind is normally the CamelCased singular type. Your resource manifests use this.
+    kind: CronTab
+    # shortNames allow shorter string to match your resource on the CLI
+    shortNames:
+    - ct
+```
+
+*References*
+
+- [customresources versioning design doc](https://github.com/kubernetes/community/blob/4f9bc566a98517dbb6d1abc8ebc6cf2351e38e18/contributors/design-proposals/api-machinery/customresources-versioning.md)
+
 ## aggregated api servers
 
 *Date: 01/13/2018, v1.9, beta*
 
-The end goal of the proposal is to run multiple kubernetes style API servers ina single cluster, see
+The end goal of the proposal is to run multiple kubernetes style API servers in a single cluster, see
 following docs for motivation. In 1.7 the aggregation layer runs in-process with the kube-apiserver.
 Until an extension resource is registered, the aggregation layer will do nothing. To register an API,
 users must add an APIService object, which "claims" the URL path in the Kubernetes API. At that point,
@@ -294,9 +511,9 @@ finalizer framework to make sure deleting a namespace also deletes its resources
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/5c72116259a131b03f4c6b5e6a7c5ffa289e556f/contributors/design-proposals/api-machinery/aggregated-api-servers.md)
-- [walkthrough](https://github.com/kubernetes/sample-apiserver/blob/637c5e26e5de100689e9550c92fafd1337522655/docs/minikube-walkthrough.md)
-- [api builder](https://github.com/kubernetes-incubator/apiserver-builder/tree/e809ac2f9f0c238f08d08a876f8b3f499604f941/docs/concepts)
+- [aggregated apiservers design doc](https://github.com/kubernetes/community/blob/5c72116259a131b03f4c6b5e6a7c5ffa289e556f/contributors/design-proposals/api-machinery/aggregated-api-servers.md)
+- [minikube walkthrough](https://github.com/kubernetes/sample-apiserver/blob/637c5e26e5de100689e9550c92fafd1337522655/docs/minikube-walkthrough.md)
+- [api builder concepts](https://github.com/kubernetes-incubator/apiserver-builder/tree/e809ac2f9f0c238f08d08a876f8b3f499604f941/docs/concepts)
 
 *Update on 04/21/2018, v1.10*
 
@@ -366,7 +583,9 @@ services, so clients are free to access the API servers directly. Below is a bri
 
 ## admission control extension, aka. dynamic admission control
 
-*Date: 07/17/2017, v1.7, alpha*
+- *Date: 07/17/2017, v1.7, alpha*
+- *Date: 03/10/2018, v1.10, beta*
+- *Date: 09/29/2019, v1.16, stable*
 
 Before kubernetes 1.7, there's only built-in admission controllers, and these controllers are shipped
 with kubernetes releases. If user wants to add new type of admission controller, he/she must add
@@ -380,7 +599,7 @@ fields.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/api-machinery/admission_control_extension.md)
+- [admission control extension design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/api-machinery/admission_control_extension.md)
 - https://github.com/kubernetes/community/pull/132
 
 **initializers**
@@ -414,6 +633,10 @@ initializers:
         resources:
           - pods
 ```
+
+*Update on 06/29/2019, v1.15, deprecated*
+
+Initializers are deprecated in favor of webhook admission.
 
 **external webhook**
 
@@ -494,7 +717,7 @@ A few other notes from the design doc:
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/api-machinery/admission-control-webhooks.md)
+- [admission control webhooks design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/api-machinery/admission-control-webhooks.md)
 - https://github.com/kubernetes/features/issues/492
 
 ## admission control webhook bootstrapping
@@ -522,7 +745,7 @@ this is critical for maintaining cluster, labeling namespace is a privileged ope
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/53641448047f41c29f46d158b3a2f7d3b4c3aebb/contributors/design-proposals/api-machinery/admission-webhook-bootstrapping.md)
+- [admission webhook bootstrapping design doc](https://github.com/kubernetes/community/blob/53641448047f41c29f46d158b3a2f7d3b4c3aebb/contributors/design-proposals/api-machinery/admission-webhook-bootstrapping.md)
 - https://github.com/kubernetes/community/pull/1287
 
 ## auditing
@@ -621,12 +844,22 @@ rules:
 For more design issues, see the original proposal. Note the design doc is slightly outdated than
 current implementation (see [user guide](https://kubernetes.io/docs/tasks/debug-application-cluster/audit/)).
 
-- [design doc](https://github.com/kubernetes/community/blob/cf54b3484b89d51d7976f816aba95db75cbeccc3/contributors/design-proposals/api-machinery/auditing.md)
+Apart from auditing policy, another feature called Audit backends persist audit events to an external
+storage. Kube-apiserver out of the box provides three backends:
+- Log backend, which writes events to a disk
+- Webhook backend, which sends events to an external API
+- Dynamic backend, which configures webhook backends through an `AuditSink` API object. `AuditSink`
+  can be found under `auditregistration` API group in main Kubernetes.
+
+*References*
+
+- [auditing design doc](https://github.com/kubernetes/community/blob/cf54b3484b89d51d7976f816aba95db75cbeccc3/contributors/design-proposals/api-machinery/auditing.md)
 - https://github.com/kubernetes/apiserver/tree/release-1.10/pkg/apis/audit
 
 ## monitoring kubelet configuration
 
-*Date: 08/16/2017, v1.7*
+- *Date: 08/16/2017, v1.7*
+- *Date: 09/22/2018, v1.11, closed*
 
 This proposal is about exposing component configuration via configz endpoint, using standard kubernetes
 API machinery. Before the proposal, each component exposes their own config via `/configz`; the
@@ -634,11 +867,12 @@ proposal proposes to use versioned object and exposes via `/configz/{group}/{ver
 
 *References*
 
-- [design doc](https://docs.google.com/document/d/1kNVSdw7H9EqyvI2BYH4EqwVtcg9bi9ZCPpJs8aKZFmM/edit?ts=598cdcf8)
+- [monitoring kubelet configuration design doc](https://docs.google.com/document/d/1kNVSdw7H9EqyvI2BYH4EqwVtcg9bi9ZCPpJs8aKZFmM/edit?ts=598cdcf8)
 
-## self-hosting authz webhook
+## self-hosting authz webhook, aka. dynamic auth
 
-*Date: 03/07/2018, v1.10, alpha delayed*
+- *Date: 03/07/2018, v1.10, alpha delayed*
+- *Date: 09/22/2018, v1.11, closed*
 
 The proposal makes it possible (easy) to have the authorization webhook run as a pod in the cluster
 being authorized. Before the feature, API server accepts a kubeconfig format config file via flag
@@ -670,12 +904,14 @@ externalAuthorizationHooks:
       namespace: some-namespace #<namespace of the front-end service>
 ```
 
-- [design doc](https://github.com/filmil/community/blob/56c6cbc35fb5bfd8c24a1f2736ad8a97d960994e/contributors/design-proposals/auth/self-hosting-authorization-webhook.md)
+The feature is later closed due to its wide involvement with other parts of Kubernetes, and potential
+security issues with dynamic auth (dynamic admission is less risky).
+
+*References*
+
+- [self hosting authorization webhook design doc](https://github.com/filmil/community/blob/56c6cbc35fb5bfd8c24a1f2736ad8a97d960994e/contributors/design-proposals/auth/self-hosting-authorization-webhook.md)
+- https://github.com/kubernetes/kubernetes/issues/65109
 - https://github.com/kubernetes/features/issues/516
-
-*Update on 09/22/2018, v1.11, closed*
-
-The feature is closed due to its wide involvement with other parts of Kubernetes.
 
 ## alternate representations of api resources
 
@@ -735,13 +971,13 @@ Content-Type: application/json;g=meta.k8s.io,v=v1,as=PartialObjectMetadata
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/alternate-api-representations.md)
+- [alternate api representations design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/alternate-api-representations.md)
 
-## server get
+## server side get
 
-*Date: 03/07/2018, v1.10, alpha*
+*Date: 03/07/2018, v1.10*
 
-server-get is part of alternate representations of api resources.
+server side get is part of alternate representations of api resources.
 
 The proposal adds a new type "Table" to meta API (k8s.io/apimachinery), which is a tabular representation
 of a set of API resources. The server transforms the object into a set of preferred columns for quickly
@@ -751,11 +987,12 @@ with extension API types.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/e208e4dc74e690ea9c7d82cb67acece5f1f665fc/contributors/design-proposals/api-machinery/server-get.md)
+- [server get design doc](https://github.com/kubernetes/community/blob/e208e4dc74e690ea9c7d82cb67acece5f1f665fc/contributors/design-proposals/api-machinery/server-get.md)
 
 ## api chunking
 
-*Date: 04/21/2018, v1.10, beta*
+- *Date: 10/27/2017, v1.8, alpha*
+- *Date: 04/21/2018, v1.10, beta*
 
 On large clusters, performing API queries that return all of the objects of a given resource type
 (GET /api/v1/pods, GET /api/v1/secrets) can lead to significant variations in peak memory use on the
@@ -793,7 +1030,7 @@ GET /api/v1/pods?limit=500&continue=DEF...
 }
 ```
 
-There are a few properties for the token 'continue' returned from server:
+There are a few properties for the token `continue` returned from server:
 - it is an opaque token, i.e. client is not supposed to parse and understand the token
 - the server may limit the amount of time a token is valid for (within mintues)
 - the token does not encode the filter parameter of initial request, so client can theoretically
@@ -803,14 +1040,11 @@ There are a few properties for the token 'continue' returned from server:
   (new item added after initial list request will not appear in subsquent requests using previous
   continue token)
 
+Kubectl is updated to use API chunking via `--chunk` flag.
+
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/api-chunking.md)
-
-*Timeline*
-
-- Kubernetes 1.8, alpha
-- Kubernetes 1.9, beta
+- [api chunking design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/api-chunking.md)
 
 ## event compression
 
@@ -838,7 +1072,27 @@ parts in this event compression design:
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/event_compression.md)
+- [event compression design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/event_compression.md)
+
+## admission control plugin configuration
+
+*Date: 06/29/2018, v1.15*
+
+Admission controllers can be configured via apiserver flag `--admission-control-config-file`, with
+the following content:
+
+```yaml
+apiVersion: apiserver.k8s.io/v1alpha1
+kind: AdmissionConfiguration
+plugins:
+- name: EventRateLimit
+  path: eventconfig.yaml
+- name: ImagePolicyWebhook
+  path: imagepolicyconfig.yaml
+...
+```
+
+The config file of each plugin is plugin dependent.
 
 ## admission control plugin - EventRateLimit
 
@@ -846,7 +1100,7 @@ parts in this event compression design:
 
 This document proposes an admission controller to enforce a limit on the number of event requests
 that the API Server will accept in a given time slice. In a large cluster, the amount of events can
-be large enough to overwhelm the API server. The design proposes four aspacts to limit events, i.e.
+be large enough to overwhelm the API server. The design proposes four aspects to limit events, i.e.
 
 ```go
 const (
@@ -867,44 +1121,44 @@ const (
 
 It has three config knobs: qps, burst and cacheSize. At time t, server will only accept "burst"
 number of requests; and server will add "qps" budget for accepting requests every second, up to
-"burst". The design doc has a detailed example for this. The feature is alpha in Kubernetes 1.10.
+"burst". The design doc has a detailed example for this.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/53641448047f41c29f46d158b3a2f7d3b4c3aebb/contributors/design-proposals/api-machinery/admission_control_event_rate_limit.md)
+- [admission control event rate limit design doc](https://github.com/kubernetes/community/blob/53641448047f41c29f46d158b3a2f7d3b4c3aebb/contributors/design-proposals/api-machinery/admission_control_event_rate_limit.md)
 
 ## master count lease reconciler
 
-*Date: 04/21/2018, v1.10, alpha*
+*Date: 04/21/2018, v1.10*
 
 The proposal aims to fix the problem where staled API server endpoints are not removed from the
-'kubernetes' service; for example, when a Kubernetes master is down for some reason. Since quite a
-few components use this built-in 'kubernetes' service, e.g. dns, this can cause problems to
+`kubernetes` service; for example, when a Kubernetes master is down for some reason. Since quite a
+few components use this built-in `kubernetes` service, e.g. dns, this can cause problems to
 applications as well.
 
 In older Kubernetes version, master has a reconciler to do this, but it removes staled API server
-only when new apiserver is brought up again. It works by defining a flag '--apiserver-count'; the
+only when new apiserver is brought up again. It works by defining a flag `--apiserver-count`; the
 reconciler maintains the endpoints to not exceeds the account. When new master is brought up, the
-endpoint becomes 'count + 1' and thus staled API endpoint is removed. However, if no new master is
-brought up, the staled API endpoint will stay there forever, causing part of traffic via 'kubernetes'
+endpoint becomes `count + 1` and thus staled API endpoint is removed. However, if no new master is
+brought up, the staled API endpoint will stay there forever, causing part of traffic via `kubernetes`
 service to fail. Another minor issue with the reconciler is that if real apiserver count is above
-'--apiserver-count', then 'kubernetes' endpoints will flap.
+`--apiserver-count`, then `kubernetes` endpoints will flap.
 
 The design proposal to fix the problem is to use a lease reconciler: it uses a lease that is regularly
 renewed by each apiserver replica. When a replica is down, it stops renewing its lease, and the other
 replicas notice that the lease expired and remove it from the list of endpoints. You can switch to
-the new reconciler by adding the flag "--endpoint-reconciler-type=lease" when starting your apiserver
+the new reconciler by adding the flag `--endpoint-reconciler-type=lease` when starting your apiserver
 replicas. The default lease TTL is 15s, and is checked 2/3 of this value. In very large clusters, this
 value may be increased to reduce the possibility that the master endpoint record expires (due to other
 load on the etcd server) and causes masters to drop in and out of the kubernetes service record. It
 is not recommended to set this value below 15s.
 
-- [design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/apiserver-count-fix.md>)
+- [apiserver count fix design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/apiserver-count-fix.md>)
 - https://kubernetes.io/docs/admin/high-availability/building/#endpoint-reconciler
 
 ## client structure and library proposal
 
-*Date: 05/08/2018, v1.10*
+- *Date: 05/08/2018, v1.10, beta*
 
 There is an effort in Kubernetes to streamline the maintenance of clients in different languages.
 This is originated from [this issue](https://github.com/kubernetes/kubernetes/issues/22405), and the
@@ -917,7 +1171,8 @@ work is being done within [kubernetes-client org](https://github.com/kubernetes-
 
 ## garbage collector
 
-*Date: 06/20/2017, v1.6*
+- *Date: 06/20/2017, v1.6, design*
+- *Date: 04/01/2018, v1.10, beta*
 
 Garbage collector controller implements cascading deletion for all API resources in a generic way.
 For example, it deletes all pods when a replicaset is deleted.
@@ -946,21 +1201,17 @@ collect in foreground, i.e. synchronous garbage collection. The idea is to add a
 'foregroundDeletion' in addition to 'orphan'. Apart from finalizer, dependent that will block the
 owner deletion process will have its "ownerReference.blockOwnerDeletion" set to true.
 
-*References*
-
-- [async gc proposal](https://github.com/kubernetes/community/blob/45988676be1714cc275b8e736b42e0820aa57362/contributors/design-proposals/garbage-collection.md)
-- [sync gc proposal](https://github.com/kubernetes/community/blob/45988676be1714cc275b8e736b42e0820aa57362/contributors/design-proposals/synchronous-garbage-collection.md)
-- https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/
-
-*Update on 04/01/2018, v1.10, beta*
-
-The feature is still in beta in kubernetes 1.10.
-
 Prior to Kubernetes 1.9, the default garbage collection policy for many controller resources was
 orphan. This included ReplicationController, ReplicaSet, StatefulSet, DaemonSet, and Deployment.
 For kinds in the extensions/v1beta1, apps/v1beta1, and apps/v1beta2 group versions, unless you
 specify otherwise, dependent objects are orphaned by default. In Kubernetes 1.9, for all kinds in
 the apps/v1 group version, dependent objects are deleted by default.
+
+*References*
+
+- [async gc design doc](https://github.com/kubernetes/community/blob/45988676be1714cc275b8e736b42e0820aa57362/contributors/design-proposals/garbage-collection.md)
+- [sync gc design doc](https://github.com/kubernetes/community/blob/45988676be1714cc275b8e736b42e0820aa57362/contributors/design-proposals/synchronous-garbage-collection.md)
+- https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/
 
 ## limitrange, resourcequota
 

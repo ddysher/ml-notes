@@ -1,0 +1,24 @@
+# Choose an optional name for the datacenter
+global:
+  datacenter: minidc
+
+# Enable the Consul Web UI via a NodePort
+ui:
+  service:
+    type: 'NodePort'
+
+# Enable Connect for secure communication between nodes
+connectInject:
+  enabled: true
+
+client:
+  enabled: true
+  grpc: true
+
+# Use only one Consul server for local development
+server:
+  replicas: 1
+  bootstrapExpect: 1
+  disruptionBudget:
+    enabled: true
+    maxUnavailable: 0

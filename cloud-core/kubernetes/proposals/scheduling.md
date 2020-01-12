@@ -2,6 +2,9 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
+- [KEPs](#keps)
+  - [coscheduling](#coscheduling)
+  - [even pods spreading](#even-pods-spreading)
 - [Feature & Design](#feature--design)
   - [rescheduling & rescheduler, or descheduler](#rescheduling--rescheduler-or-descheduler)
   - [rescheduler for critical pods](#rescheduler-for-critical-pods)
@@ -29,6 +32,132 @@
 > A collection of proposals, designs, features in Kubernetes scheduling.
 
 - [SIG-Scheduling Community](https://github.com/kubernetes/community/tree/master/sig-scheduling)
+
+# KEPs
+
+## coscheduling
+
+- *Date: 09/14/2019, v1.15*
+
+Co-scheduling is a proposal to add more batch scheduling capabilities in Kubernetes, notably gang
+scheduling and resource sharing across multi-tenants.
+
+After the KEP, the kube-batch project has since then changed quite a bit. For more information, refer
+to [kube-batch](https://github.com/kubernetes-sigs/kube-batch).
+
+*References*
+
+- [coscheduling KEP link](https://github.com/kubernetes/enhancements/blob/8e70bb6d374f911e87c2f6e1fa31ec80f12451b5/keps/sig-scheduling/34-20180703-coscheduling.md)
+
+## even pods spreading
+
+- *Date: 09/22/2019, v1.16, alpha*
+
+Kubernetes scheduler includes `NodeAffinity`, `PodAffinity`, `PodAntiAffinity`, but there is no
+option to put pods evenly across different topology domains. For example, to run 4 Pods in 2 zones,
+the scheduling decision can be 4 Pods in 1 zone, or 2 Pods in each zone.
+
+It's possible to minic the behavior using `PodAntiAffinity`, e.g.
+
+```
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+           matchExpressions:
+           - key: component
+              operator: In
+              values:
+              - app
+         topologyKey: failure-domain.beta.kubernetes.io/zone
+```
+
+this works initially since there's no Pods with provided labels running, so we can run 1 pods in each
+zone; however, it doesn't work during rolling upgrade since old Pods are already running, thus new
+Pods will stuck (or trigger Cluster Autoscaler). In addition, using `PodAntiAffinity`, we can only
+run 1 Pod in each zone, unless we subdivide zone into smaller topology, which is quite manual and
+hard to manage.
+
+To support the feature, a new field called `TopologySpreadConstraint` is introduced which acts as a
+standalone spec and is applied to `Pod.Spec` (alpha).
+
+```go
+type PodSpec struct {
+  ......
+  // TopologySpreadConstraints describes how a group of pods are spread
+  // If specified, scheduler will enforce the constraints
+  // +optional
+  TopologySpreadConstraints []TopologySpreadConstraint
+  ......
+}
+
+// TopologySpreadConstraint specifies how to spread matching pods among the given topology.
+type TopologySpreadConstraint struct {
+  // MaxSkew describes the degree to which pods may be unevenly distributed.
+  // It's the maximum permitted difference between the number of matching pods in
+  // any two topology domains of a given topology type.
+  // For example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same
+  // labelSelector spread as 1/1/0:
+  // +-------+-------+-------+
+  // | zone1 | zone2 | zone3 |
+  // +-------+-------+-------+
+  // |   P   |   P   |       |
+  // +-------+-------+-------+
+  // - if MaxSkew is 1, incoming pod can only be scheduled to zone3 to become 1/1/1;
+  // scheduling it onto zone1(zone2) would make the ActualSkew(2-0) on zone1(zone2)
+  // violate MaxSkew(1).
+  // - if MaxSkew is 2, incoming pod can be scheduled onto any zone.
+  // It's a required field. Default value is 1 and 0 is not allowed.
+  MaxSkew int32
+  // TopologyKey is the key of node labels. Nodes that have a label with this key
+  // and identical values are considered to be in the same topology.
+  // We consider each <key, value> as a "bucket", and try to put balanced number
+  // of pods into each bucket.
+  // It's a required field.
+  TopologyKey string
+  // WhenUnsatisfiable indicates how to deal with a pod if it doesn't satisfy
+  // the spread constraint.
+  // - DoNotSchedule (default) tells the scheduler not to schedule it
+  // - ScheduleAnyway tells the scheduler to still schedule it
+  // It's considered as "Unsatisfiable" if and only if placing incoming pod on any
+  // topology violates "MaxSkew".
+  // For example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same
+  // labelSelector spread as 3/1/1:
+  // +-------+-------+-------+
+  // | zone1 | zone2 | zone3 |
+  // +-------+-------+-------+
+  // | P P P |   P   |   P   |
+  // +-------+-------+-------+
+  // If WhenUnsatisfiable is set to DoNotSchedule, incoming pod can only be scheduled
+  // to zone2(zone3) to become 3/2/1(3/1/2) as ActualSkew(2-1) on zone2(zone3) satisfies
+  // MaxSkew(1). In other words, the cluster can still be imbalanced, but scheduler
+  // won't make it *more* imbalanced.
+  // It's a required field.
+  WhenUnsatisfiable UnsatisfiableConstraintAction
+  // LabelSelector is used to find matching pods.
+  // Pods that match this label selector are counted to determine the number of pods
+  // in their corresponding topology domain.
+  // +optional
+  LabelSelector *metav1.LabelSelector
+}
+```
+
+Below is a few conventions in EvenPodsSpread feature:
+- Nodes without `topologySpreadConstraints[*].topologyKey` present will be bypassed, i.e.
+  - Pods already running on the Nodes won't affect scheduling decision
+  - New Pods won't be able to run on such Nodes
+- The feature works with existing affinity features. If NodeAffinity or NodeSelector is defined,
+  spreading is applied to nodes that pass those filters. For example, if NodeAffinity chooses zone1
+  and zone2 and there are 10 zones in the cluster, pods are spread in zone1 and zone2 only and
+  MaxSkew is enforced only on these two zones.
+- In alpha release, Pods matched on tainted Nodes are respected, ref [issue](https://github.com/kubernetes/kubernetes/issues/80921).
+- It's recommended that incoming Pod matches itself on its labels.
+- Scaling down a Deployment may result in imbalanced Pods distribution.
+
+*References*
+
+- [even pods spreading KEP link](https://github.com/kubernetes/enhancements/blob/26dc9a946876b32f3f2b41a58edf4e35a2751f9f/keps/sig-scheduling/20190221-even-pods-spreading.md)
+- https://github.com/kubernetes/kubernetes/issues/68981
 
 # Feature & Design
 
@@ -71,7 +200,8 @@ pods to other nodes; while descheduler only checks policies and evit pods from t
 
 ## rescheduler for critical pods
 
-*Date: 07/20/2017, v1.7*
+- *Date: 07/20/2017, v1.7*
+- *Date: 06/14/2018, v1.10, deprecated*
 
 Rescheduler for critical pods is a component to re-schedule pending pods to other nodes, or shuffle
 existing running pods to improve server utilizations. As of kubernetes 1.7, this is not a general
@@ -97,13 +227,16 @@ still need rescheduler to shuffle pods for daemonset controller.
 
 *References*
 
-- [proposal](https://github.com/kubernetes/community/blob/b8d4a1b389bd105d23ca496b1c67febe1e2efdf2/contributors/design-proposals/scheduling/rescheduling-for-critical-pods.md)
+- [rescheduling for critical pods proposal](https://github.com/kubernetes/community/blob/b8d4a1b389bd105d23ca496b1c67febe1e2efdf2/contributors/design-proposals/scheduling/rescheduling-for-critical-pods.md)
 - https://github.com/kubernetes/contrib/tree/master/rescheduler
 - https://kubernetes.io/docs/tasks/administer-cluster/guaranteed-scheduling-critical-addon-pods/
 
 ## pod priority
 
-*Date: 05/23/2017, v1.6, design*
+- *Date: 05/23/2017, v1.6, design*
+- *Date: 10/27/2017, v1.8, alpha*
+- *Date: 06/13/2018, v1.11, beta*
+- *Date: 06/11/2019, v1.14, stable*
 
 At time of writing, pod priority is still in proposal phase; the general idea is to associate each
 pod with a priority. The priority will be used in both pod scheduling and preemption. Two fields
@@ -170,24 +303,16 @@ A few notes:
 - By default, only one default priority class can exist. But in case of multiple ones exist (due to
   race condition, etc), kubernetes will return the one with lowest priority value (smallest number).
 
-*Update on 10/27/2017, v1.8, alpha*
-
-The feature reaches alpha in kubernetes 1.8, ref [updated proposal](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/scheduling/pod-priority-api.md).
-
-*Update on 03/10/2018, v1.10, alpha*
-
-The feature is still alpha in kubernetes 1.10, ref [tracking issue](https://github.com/kubernetes/kubernetes/issues/57471).
-
-*Update on 06/13/2018, v1.11, beta*
-
-The feature reaches beta in kubernetes 1.11.
-
 *References*
-- https://github.com/kubernetes/community/pull/604
+
+- [pod priority design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/scheduling/pod-priority-api.md)
+- https://github.com/kubernetes/enhancements/issues/564
+- https://github.com/kubernetes/kubernetes/issues/57471
 
 ## pod preemption
 
-*Date: 06/23/2018, v1.11, beta*
+- *Date: 06/23/2018, v1.11, beta*
+- *Date: 06/11/2019, v1.14, stable*
 
 Pod preemption is the process where kubernetes scheduler tries to preempt lower priority pods to
 make room for higher priority pods (the feature comes after priority API design). Note that preemption
@@ -245,11 +370,12 @@ search to find the pods to evict, which can be very expensive, thus the feature 
 right now.
 
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/d251c97aff20fe94fea9761a2ce9b922e6b68239/contributors/design-proposals/scheduling/pod-preemption.md)
+
+- [pod preemption design doc](https://github.com/kubernetes/community/blob/d251c97aff20fe94fea9761a2ce9b922e6b68239/contributors/design-proposals/scheduling/pod-preemption.md)
 
 ## pod priority quota
 
-*Date: 06/23/2018, v1.11, alpha*
+- *Date: 06/23/2018, v1.11*
 
 Apart from priority API design above, a new design, priority resource quota is added (as part of the
 ResourceQuota API). Since we already have priority field in Pod spec, Pods can now be classified
@@ -261,8 +387,29 @@ short, the existing `scope` field in ResourceQuota API will be extended to consi
 The resource quota scope is used to filter objects matching the quota, so naturally, we add the
 priority info into quota scope so it will match pods of specific priority, etc.
 
+*Update on 06/29/2019, v1.15*
+
+The design has changed to use `scopeSelector` in `ResourceQuota`, e.g.
+
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pod-priority
+spec:
+  hard:
+    pods: "2"
+  scopeSelector:
+    matchExpressions:
+    - operator: In
+      scopeName: PriorityClass
+      values:
+      - pod-priority
+```
+
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/99e4e741f8c488e427e6b8398b0cf55c6c8ad306/contributors/design-proposals/scheduling/pod-priority-resourcequota.md)
+
+- [pod priority resource quota design doc](https://github.com/kubernetes/community/blob/99e4e741f8c488e427e6b8398b0cf55c6c8ad306/contributors/design-proposals/scheduling/pod-priority-resourcequota.md)
 
 ## scheduler extender
 
@@ -278,7 +425,8 @@ Additionally, the extender can choose to bind the pod to apiserver by implementi
 Note the design doc is a bit outdated, it doesn't mention the `preempt` action.
 
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/184c105667bd340fdb8a3dfaabe9a7a1d0346988/contributors/design-proposals/scheduling/scheduler_extender.md)
+
+- [scheduler extender design doc](https://github.com/kubernetes/community/blob/184c105667bd340fdb8a3dfaabe9a7a1d0346988/contributors/design-proposals/scheduling/scheduler_extender.md)
 
 ## multi-scheduler
 
@@ -310,7 +458,8 @@ Note there are a couple of other approaches to extend scheduler:
 - Or maybe in future dynamically link a new policy into the running scheduler
 
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/0f7cc84c83867f6dd5cb241e7e2a69687ca7d796/contributors/design-proposals/multiple-schedulers.md)
+
+- [multi-scheduler design doc](https://github.com/kubernetes/community/blob/0f7cc84c83867f6dd5cb241e7e2a69687ca7d796/contributors/design-proposals/multiple-schedulers.md)
 - https://kubernetes.io/docs/tutorials/clusters/multiple-schedulers/
 
 ## scheduler framework, aka, scheduler v2
@@ -341,6 +490,7 @@ extension points are:
 - post-bind: The Post Bind plugins can be useful for housekeeping after a pod is scheduled.
 
 *References*
+
 - https://github.com/kubernetes/community/pull/2281
 
 ## taint node by conditions
@@ -353,12 +503,13 @@ However, this is not optimal as user might want to schedule pod to that node, e.
 issues. The proposal aims to solve the issue via tainting node using node condition, users can then
 use tolerations to improve scheduling capability.
 
-- [design doc](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling/taint-node-by-condition.md)
+- [taint node by conditions design doc](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling/taint-node-by-condition.md)
 - https://github.com/kubernetes/community/pull/819
 
 ## schedule daemonset pod by default scheduler
 
-*Date: 03/23/2018, v1.9, design*
+- *Date: 03/23/2018, v1.9, design*
+- *Date: 10/04/2018, v1.12, beta*
 
 As of 1.9, Kubernetes daemonset controller contains scheduling logic; it uses scheduler logic to
 determine node feasibility (e.g. PodFitHosts), and directly set `pod.spec.hostName`, which bypasses
@@ -388,14 +539,15 @@ Implementation-wise, daemonset controller will use node affinity feature to sche
 cluster, it takes quite a few minutes; but Kubernetes chooses to stay with that, and will optimize
 it later.
 
-*Update on 10/04/2018, v1.12.0*
+*Update on 10/04/2018, v1.12*
 
 DaemonSet pods, which used to be scheduled by the DaemonSet controller, will be scheduled by the
 default scheduler in 1.12. This change allows DaemonSet pods to enjoy all the scheduling features of
 the default scheduler.
 
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/01a70cd13341130a0f0206e264e5a32a011ae371/contributors/design-proposals/scheduling/schedule-DS-pod-by-scheduler.md)
+
+- [schedule ds pod by scheduler design doc](https://github.com/kubernetes/community/blob/01a70cd13341130a0f0206e264e5a32a011ae371/contributors/design-proposals/scheduling/schedule-DS-pod-by-scheduler.md)
 - https://github.com/kubernetes/kubernetes/issues/42002
 - https://docs.google.com/document/d/1v7hsusMaeImQrOagktQb40ePbK6Jxp1hzgFB9OZa_ew/edit
 
@@ -413,7 +565,8 @@ defined, we can use NodeSelectorRequirement to select nodes, i.e. `<Key Operator
 details, see experiments/scheduling.
 
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/release-1.6/contributors/design-proposals/nodeaffinity.md)
+
+- [node affinity design doc](https://github.com/kubernetes/community/blob/release-1.6/contributors/design-proposals/nodeaffinity.md)
 - https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 
 ## pod affinity/anti-affinity
@@ -496,11 +649,12 @@ There are a couple of takeaways from the design proposal:
   affinity rule; for the second question, whichever component does the killing will decide the time.
 
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/release-1.6/contributors/design-proposals/podaffinity.md)
+
+- [pod affinity/anti-affinity design doc](https://github.com/kubernetes/community/blob/release-1.6/contributors/design-proposals/podaffinity.md)
 
 ## taint, toleration and dedicated nodes
 
-*Date: 06/22/2018, v1.10, ga*
+*Date: 06/22/2018, v1.10, stable*
 
 A taint is a new type that is part of the NodeSpec; when present, it prevents pods from scheduling
 onto the node unless the pod tolerates the taint (tolerations are listed in the PodSpec).
@@ -514,11 +668,13 @@ Future work:
   with its taints.
 
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/scheduling/taint-toleration-dedicated.md)
+
+- [taint toleration dedicated design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/scheduling/taint-toleration-dedicated.md)
 
 ## scheduler equivalence class
 
-*Date: 06/23/2018, v1.10, alpha*
+- *Date: 06/23/2018, v1.10, alpha*
+- *Date: 10/05/2018, v1.12, alpha*
 
 Pods in Kubernetes cluster usually have identical requirements and constraints, e.g. Deployment with
 a number of replicas. So rather than determining feasibility for every pending pod on every node, we
@@ -556,11 +712,12 @@ where `c.cache` is a single cache, whereas `n.cache` is per node cache. The chan
 usage and uses r/w lock instead of mutex lock to improve performance.
 
 *References*
-- [design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/scheduling/scheduler-equivalence-class.md)
+
+- [scheduler equivalence class design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/scheduling/scheduler-equivalence-class.md)
 
 ## scheduler policy via configmap
 
-*Date: 06/13/2018, v1.10, beta*
+*Date: 06/13/2018, v1.10*
 
 The feature allows kubernetes scheduler to pick up its config from configmap. The proposal choose to
 use configmap (instead of reading config from local config  file), because this makes it easy to run
@@ -569,12 +726,14 @@ design chooses to change scheduler code to watch configmap. An alternative appro
 design doc is to use a sidecar to pick up the configmap.
 
 *References*
+
 - https://docs.google.com/document/d/19AKH6V6ejOeIvyGtIPNvRMR4Yi_X8U3Q1zz2fgTNhvM/edit
 - https://github.com/kubernetes/features/issues/374
 
 ## per-pod-configurable eviction behavior
 
-*Date: 04/03/2017, v1.6, alpha*
+- *Date: 04/03/2017, v1.6, alpha*
+- *Date: 06/29/2019, v1.15, beta*
 
 Kubernetes 1.6 has alpha support for representing node problems as taints (currently only "node
 unreachable" and "node not ready", corresponding to the NodeCondition "Ready" being "Unknown" or
@@ -609,6 +768,7 @@ These automatically-added tolerations ensure that the default pod behavior of re
 added by the `DefaultTolerationSeconds` admission controller.
 
 *References*
+
 - https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/#taint-based-evictions
 
 ## scheduler binding

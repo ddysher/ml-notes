@@ -8,7 +8,7 @@
 
 # Overview
 
-*Date: 04/07/2017, k8s 1.6, project release v2.0.0*
+*Date: 04/07/2017, kubernetes v1.6, project release v2.0.0*
 
 At time of writing, [external storage](https://github.com/kubernetes-incubator/external-storage) is
 an incubator project. The project is fairly simple, it houses community-maintained external provisioners

@@ -27,8 +27,8 @@ parameter.
 
 As required by s2i, builder image must contain scripts like assemble, run, etc. For "centos/python-35-centos7",
 it has "assemble", "run" and "usage" scripts, located at "/usr/libexec/s2i". For more information, see:
-  - https://github.com/openshift/source-to-image/blob/v1.1.11/docs/builder_image.md
-  - https://github.com/openshift/source-to-image/blob/v1.1.11/docs/runtime_image.md
+- https://github.com/openshift/source-to-image/blob/v1.1.11/docs/builder_image.md
+- https://github.com/openshift/source-to-image/blob/v1.1.11/docs/runtime_image.md
 
 By default, the command will generate Dockerfile (using string concatenation) and build a image
 using this Dockerfile:

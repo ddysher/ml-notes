@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: resources-quota
-spec:
-  hard:
-    # requests.cpu: 2
-    # requests.storage: 10Gi
-    requests.storage.kubernetes.io/scratch: 1Gi

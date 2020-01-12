@@ -3,13 +3,8 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Feature & Design](#feature--design)
-  - [arch: borg/mesos style](#arch-borgmesos-style)
-  - [arch: kubernetes node (worker node, minion)](#arch-kubernetes-node-worker-node-minion)
-  - [arch: kubernetes control plane (master)](#arch-kubernetes-control-plane-master)
   - [cli: kubectl gochas](#cli-kubectl-gochas)
   - [cloud: support out-of-process and out-of-tree cloud providers](#cloud-support-out-of-process-and-out-of-tree-cloud-providers)
-  - [misc: how PodDisruptionBudget works](#misc-how-poddisruptionbudget-works)
-  - [misc: how PodPreset works](#misc-how-podpreset-works)
   - [example: analysis of guestbook example](#example-analysis-of-guestbook-example)
   - [thockin mentor](#thockin-mentor)
 - [Links & Resources](#links--resources)
@@ -20,78 +15,6 @@
 
 # Feature & Design
 
-## arch: borg/mesos style
-
-*Date: 05/18/2017*
-
-Borg style architecture
-
-- a single logical API endpoint for clients, where some amount of processing is done on requests,
-  such as admission control and applying defaults
-- generic (non-application-specific) collection abstractions described declaratively
-- generic controllers/state machines that manage the lifecycle of the collection abstractions and
-  the containers spawned from them
-- a generic scheduler
-
-Mesos style architecture
-- multiple application-centric framework
-- every framework has its own set of APIs
-- no standard set of collection abstractions, controller/state machine, or schedulers
-
-Building mesos style framework on kubernetes
-- Use API plugins to create API resources for your new application-specific collection abstraction(s)
-- Implement controllers for the new abstractions (and for managing the lifecycle of the pods the controllers generate)
-- Implement a scheduler with the application-specific scheduling logic
-
-*References*
-
-- [mesos style design doc](https://github.com/kubernetes/community/blob/460827bdbd253b20b966889bcc361375763e453c/contributors/devel/mesos-style.md)
-
-## arch: kubernetes node (worker node, minion)
-
-*Date: 09/01/2014*
-
-**Docker**
-
-The Kubernetes node has the services necessary to run Docker containers and be managed from the
-master systems.
-
-**Kubelet**
-
-The Kubelet works in terms of a container manifest. A container manifest is a YAML file that describes
-a pod. The Kubelet takes a set of manifests that are provided in various mechanisms and ensures that
-the containers described in those manifests are started and continue running.
-
-**Proxy**
-
-Each node also runs a simple network proxy. This reflects services as defined in the Kubernetes API
-on each node and can do simple TCP stream forwarding or round robin TCP forwarding across a set of
-backends. A service is a configuration unit for the proxies that run on every worker node. It is
-named and points to one or more pods.
-
-## arch: kubernetes control plane (master)
-
-*Date: 09/01/2014*
-
-**etcd**
-
-All persistent master state is stored in an instance of etcd. This provides a great way to store
-configuration data reliably. With watch support, coordinating components can be notified very quickly
-of changes.
-
-**API Server**
-
-This server serves up the main Kubernetes API.  It validates and configures data for 3 types of
-objects: pods, services, and replicationControllers. Beyond just servicing REST operations, validating
-them and storing them in etcd, the API Server does two other things:
-- Schedules pods to worker nodes. Right now the scheduler is very simple.
-- Synchronize pod information (where they are, what ports they are exposing) with the service configuration.
-
-**Controller Manager Server**
-
-The replicationController type described above isn't strictly necessary for Kubernetes to be useful.
-It is really a service that is layered on top of the simple pod API.
-
 ## cli: kubectl gochas
 
 *Date: 08/05/2015*
@@ -101,7 +24,8 @@ It is really a service that is layered on top of the simple pod API.
 
 ## cloud: support out-of-process and out-of-tree cloud providers
 
-*Date: 03/09/2018, k8s 1.10, alpha*
+- *Date: 03/09/2018, v1.10, alpha*
+- *Date: 06/16/2019, v1.14, beta*
 
 As Kubernetes gains acceptance, more and more cloud providers will want to make it available. To do
 that more easily, the community is working on extracting provider-specific binaries so that they can
@@ -109,47 +33,10 @@ be more easily replaced.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/b5c1e2c14ef3c6384b52e3de908131e687029072/contributors/design-proposals/cloud-provider/cloud-provider-refactoring.md)
+- [cloud refactoring design doc](https://github.com/kubernetes/community/blob/b5c1e2c14ef3c6384b52e3de908131e687029072/contributors/design-proposals/cloud-provider/cloud-provider-refactoring.md)
 - [running cloud controller](https://github.com/kubernetes/website/blob/snapshot-initial-v1.9/docs/tasks/administer-cluster/running-cloud-controller.md)
 - [developing cloud controller manager](https://github.com/kubernetes/website/blob/snapshot-initial-v1.9/docs/tasks/administer-cluster/developing-cloud-controller-manager.md)
 - [keepalived cloud provider](https://github.com/munnerz/keepalived-cloud-provider/tree/0.0.1)
-
-## misc: how PodDisruptionBudget works
-
-*Date: 05/02/2017, k8s 1.6*
-
-PodDisruptionBudget (pdb) allows user to specify rules about safety constraints on pods. A controller
-called 'disruption' is running as part of controller manager. The controller reads all pdb, as well
-as workloads (rs, rc, deployment, etc); then update pdb.status accordingly. The controller itself
-won't do any safety constraint check. Later, when user (or service account) tries to evict a pod via
-pod' eviction subresource, e.g. via
-```
-http://127.0.0.1:8080/api/v1/namespaces/default/pods/nginx-348975970-17kbf/eviction
-```
-
-the request will go to `kubernetes/pkg/registry/core/pod/storage/eviction.go`, where api server reads
-out pdbs and make sure pod safety contraints are satisfied; and if not, reject the request. Two top
-level API objects defined here ('PodDisruptionBudget' and 'Eviction') both belong to 'policy/v1beta1'
-API group.
-
-*References*
-
-- https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-disruption-budget/
-
-## misc: how PodPreset works
-
-*Date: 06/11/2017, k8s 1.6, feature alpha*
-
-PodPreset is used to inject information to a set of pods (selected via selectors). The primary use
-case is for service catalog, where when a service from service broker is provisioned, admins (or
-service catalog controller) can create resources like secret for application to use. These services
-can be inject into pod at admission time. A PodPreset admission controller is responsible to inject
-these settings. For each pod, the admission controller loops through all PodPresets and inject settings
-for all matching ones.
-
-*References*
-
-- [podpreset design doc](https://github.com/kubernetes/community/blob/630c2f78b86a327f989684b4a7bd9ee06bb431dc/contributors/design-proposals/pod-preset.md)
 
 ## example: analysis of guestbook example
 

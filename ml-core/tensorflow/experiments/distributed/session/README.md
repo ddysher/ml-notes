@@ -1,6 +1,6 @@
 # Session
 
-Unlike local session, where each seesion has its own variablesIn contrast, when you are using
+Unlike local session, where each seesion has its own variables. In contrast, when you are using
 distributed sessions, variable state is managed by `resource containers` located on the cluster
 itself, not by the sessions.
 

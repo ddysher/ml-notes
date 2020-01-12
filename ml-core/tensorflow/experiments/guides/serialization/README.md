@@ -230,6 +230,9 @@ for this SavedModel.
 
 ### Run Pretained SavedModel
 
+Download pretrained resnet from https://github.com/tensorflow/models/tree/master/official/resnet,
+make sure the model is under `./pretrainedresnet/1`.
+
 Run the following command to load and run pretrained model:
 
 ```

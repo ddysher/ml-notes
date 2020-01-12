@@ -14,7 +14,7 @@
 
 # gengo
 
-*Date: 08/25/2017, k8s 1.7*
+*Date: 08/25/2017, kubernetes v1.7*
 
 ## Overview
 
@@ -63,7 +63,7 @@ Note gengo doesn't have release; the experiment is done with commit ID: 2ef5ef33
 
 # client-gen
 
-*Date: 09/04/2017, k8s 1.7*
+*Date: 09/04/2017, kubernetes v1.7*
 
 ## Overview
 

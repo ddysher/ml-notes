@@ -9,6 +9,6 @@ spec:
     spec:
       containers:
       - name: pi
-        image: perl:5.26
+        image: perl:5.28-slim
         command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
       restartPolicy: Never

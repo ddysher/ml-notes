@@ -20,3 +20,7 @@ export KUBERNETES_PROVIDER=local
 go run hack/e2e.go -- -v --test --test_args="--ginkgo.focus=Feature:LocalPersistentVolumes --provider=local"
 go run hack/e2e.go -- -v --test --test_args="--ginkgo.focus=Port\sforwarding --provider=local"
 ```
+
+# Minikube
+
+minikube start --extra-config=apiserver.enable-admission-plugins="PodSecurityPolicy"

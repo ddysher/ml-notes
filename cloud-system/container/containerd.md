@@ -3,12 +3,11 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Overview](#overview)
-  - [Introduction (03/19/2017, v0.2)](#introduction-03192017-v02)
+  - [Introduction](#introduction)
   - [Namespaces](#namespaces)
-  - [Containerd-shim](#containerd-shim)
+  - [Shims](#shims)
   - [Plugins](#plugins)
   - [Design](#design)
-  - [Updates on 12/08/2017, v1.0](#updates-on-12082017-v10)
 - [Related Projects](#related-projects)
   - [containerd vs docker](#containerd-vs-docker)
   - [containerd vs oci,runc](#containerd-vs-ocirunc)
@@ -23,7 +22,9 @@
 
 # Overview
 
-## Introduction (03/19/2017, v0.2)
+## Introduction
+
+*Date: 03/19/2017, v0.2*
 
 containerd is an industry-standard core container runtime with an emphasis on simplicity, robustness
 and portability. It is available as a daemon for Linux and Windows, which can manage the complete
@@ -34,39 +35,48 @@ low-level storage and network attachments, etc.
 
 Note that based on containerd codebase, it is actually the shim that uses `runc` to start container.
 
+*Update on 12/08/2017, v1.0*
+
+containerd reaches v1.0 on 12/2017.
+
 ## Namespaces
 
 containerd offers a fully namespaced API so multiple consumers can all use a single containerd
 instance without conflicting with one another. Namespaces allow multi-tenancy within a single daemon.
 
-## Containerd-shim
+## Shims
 
 Every container runs under a containerd shim. The shim allows for daemonless containers. It basically
 sits as the parent of the container's process to facilitate a few things.
 - First it allows the runtimes, i.e. runc, to exit after it starts the container. This way we don't
   have to have the long running runtime processes for containers. When you start mysql you should
   only see the mysql process and the shim.
-- Second it keeps the STDIO and other fds open for the container incase containerd and/or docker
+- Second it keeps the STDIO and other fds open for the container in case containerd and/or docker
   both die. If the shim was not running then the parent side of the pipes or the TTY master would be
   closed and the container would exit.
 - Finally it allows the container's exit status to be reported back to a higher level tool like
   docker without having the actual parent of the container's process and do a `wait4`.
 
+There two versions of shim API, v1 and v2. The [v2 API](https://github.com/containerd/containerd/tree/release/1.2/runtime/v2)
+is a more elegant API which makes running different kinds of runtime easier. Here is the [proposal](https://github.com/containerd/containerd/issues/2426).
+Since then (containerd v1.2.0), many runtimes have implemented and migrated to v2 API, including:
+- [runc](https://github.com/containerd/containerd/tree/master/runtime/v2/runc)
+- [runhcs](https://github.com/containerd/containerd/tree/master/runtime/v2/runhcs)
+- [gvisor](https://github.com/google/gvisor-containerd-shim/tree/v0.0.2/pkg/v2)
+- [kata](https://github.com/kata-containers/runtime/tree/1.7.1/containerd-shim-v2)
+
 *References*
+
 - https://groups.google.com/forum/#!topic/docker-dev/zaZFlvIx1_k
 - https://github.com/crosbymichael/dockercon-2016
 
 ## Plugins
 
-Containerd uses golang plugin features (v1.8) to dynamically load [plugins](https://github.com/containerd/containerd/blob/v1.0.2/design/plugins.md)
+Containerd uses golang plugin features (v1.8) to dynamically load [plugins](https://github.com/containerd/containerd/blob/v1.0.2/design/plugins.md).
 
 ## Design
 
-For detailed containerd design, refer to [design doc here](https://github.com/containerd/containerd/blob/v1.0.2/design)
-
-## Updates on 12/08/2017, v1.0
-
-containerd reaches v1.0 on 12/2017.
+For detailed containerd design, refer to [design doc here](https://github.com/containerd/containerd/blob/v1.0.2/design).
 
 # Related Projects
 
@@ -119,7 +129,6 @@ $ sudo mv bin/* /usr/local/bin/
 Now generate config and start containerd directly in foreground:
 
 ```console
-$ containerd config default > /etc/containerd/config.toml
 $ sudo mkdir /etc/containerd
 $ sudo bash -c "containerd config default > /etc/containerd/config.toml"
 $ sudo containerd

@@ -12,16 +12,25 @@
   - [ingress](#ingress)
   - [kube-router](#kube-router)
   - [external-dns](#external-dns)
+  - [amazon-vpc-cni](#amazon-vpc-cni)
+  - [antrea](#antrea)
 - [Security](#security)
   - [audit2rbac](#audit2rbac)
+  - [kyverno](#kyverno)
+  - [k-rail](#k-rail)
+  - [polaris](#polaris)
 - [Storage](#storage)
   - [external-storage](#external-storage)
   - [trident](#trident)
-- [Application](#application)
+- [Apps](#apps)
   - [service-catalog](#service-catalog)
+  - [kubeapps](#kubeapps)
+  - [kruise](#kruise)
+  - [application](#application)
+  - [k8s-appcontroller](#k8s-appcontroller)
 - [Developer](#developer)
   - [draft](#draft)
-- [codegen](#codegen)
+  - [codegen](#codegen)
   - [metacontroller](#metacontroller)
 - [Insight](#insight)
   - [k8s-prometheus-adaptor](#k8s-prometheus-adaptor)
@@ -33,6 +42,8 @@
   - [node problem detector](#node-problem-detector)
 - [Scheduling](#scheduling)
   - [resorcerer](#resorcerer)
+  - [kube-batch](#kube-batch)
+  - [volcano](#volcano)
 - [Virtualization](#virtualization)
   - [kubevirt](#kubevirt)
   - [virtlet](#virtlet)
@@ -45,6 +56,7 @@
 - [Templating](#templating)
   - [helm](#helm)
   - [ksonnet](#ksonnet)
+  - [kustomize](#kustomize)
   - [Templates](#templates)
 - [Nodeless](#nodeless)
   - [virtual-kubelet](#virtual-kubelet)
@@ -60,12 +72,12 @@
 
 [cni-genie](https://github.com/Huawei-PaaS/CNI-Genie) is a solution from huawei which enables:
 - multiple cni plugins: user can choose which plugin to use when launching pod via annotation;
-  typically, different network uses different cidr
+  typically, different network (or plugin) uses different cidr
 - multiple IP addresses: user can request IP addresses from multiple cni
 - select ideal network: cni-genie can help user choose a cni plugin to use based on information
   like per network load
 
-Essentially, it is a proxy to underline cnis.
+Essentially, it is a proxy to underline cni.
 
 *References*
 
@@ -74,7 +86,8 @@ Essentially, it is a proxy to underline cnis.
 
 ## multus-cni
 
-*Date: 06/02/2018, v0.2*
+- *Date: 06/02/2018, v0.2*
+- *Date: 12/13/2018, v3.1*
 
 [multus-cni](https://github.com/intel/multus-cni) acts as a multi plugin in Kubernetes and provides
 the multiple network interface support in a pod. Unlike cni-genie, in multus, networks are represented
@@ -133,7 +146,7 @@ pods.
 
 ## service-loadbalancer
 
-*Date: 05/13/2017, k8s 1.6*
+*Date: 05/13/2017, kubernetes v1.6, deprecated*
 
 [service loadbalancer](https://github.com/kubernetes/contrib/tree/master/service-loadbalancer) is
 deprecated in favor of ingress controller. At its core, service loadbalancer watches the api for
@@ -157,6 +170,41 @@ link: [kube-router](./kube-router)
 
 link: [external-dns](./external-dns)
 
+## amazon-vpc-cni
+
+A [CNI plugin](https://github.com/aws/amazon-vpc-cni-k8s/blob/v1.5.0/docs/cni-proposal.md) for amazon VPC.
+
+Each EC2 instance can have multiple ENI (Elastic Network Interface), and each ENI can have multiple
+secondary IP addresses. The primary IP address, i.e. the external node IP address, will be attached
+to each ENI, and all the secondary IP addresses will be used as Pod IP. The CNI plugin is responsible
+to allocate the IPs.
+
+The network mode on each EC2 is similar to bridge CNI: a veth pair is created with one end attached
+to pod network namespace, and the other end attached to host network namespace. Each veth is assigned
+a secondary IP address.
+
+The gateway inside each Pod is "169.254.1.1", which is a link-local address used to 'fool' Pod to
+forward traffic to its internal veth interface. To do this, arp proxy is used to statically reply
+the request "who has address 169.254.1.1", with the answer "eth0 (mac_address) has". There are also
+a couple of ip/route rules setup at the host side.
+
+To speed up IP allocation, a warm-up pool is maintained on each node.
+
+There is a similar [CNI from lyft](https://github.com/lyft/cni-ipvlan-vpc-k8s) using IPvlan L2 mode.
+
+## antrea
+
+*Date: 11/26/2019, v0.1*
+
+[antrea](https://github.com/vmware-tanzu/antrea) is a Kubernetes network solution from VMWare, it
+implements:
+- Pod networking using OVS
+- Network Security
+- ClusterIP using OVS (planned)
+
+For more information, refer to
+- [archtecture guide](https://github.com/vmware-tanzu/antrea/blob/v0.1.0/docs/architecture.md)
+
 # Security
 
 ## audit2rbac
@@ -165,6 +213,40 @@ link: [external-dns](./external-dns)
 
 [audit2rbac](https://github.com/liggitt/audit2rbac) converts advanced audit log (audit.Event) to
 rbac rules (rbac.Role, rbac.RoleBinding, etc)
+
+## kyverno
+
+*Date: 12/14/2019*
+
+[kyverno](https://github.com/nirmata/kyverno) is a policy engine designed for Kubernetes. The policy
+engine is implemented as CRD and admission webhook controller. Users write CRD YAML configuration to
+define policy, which can be:
+- validation: define policy to validate resources
+- mutation: contains actions that will be applied to matching resources
+- generation: used to create default resources for a namespace
+
+kyverno comes with its own set of rules configurations, using standard regex, json, etc.
+
+## k-rail
+
+*Date: 12/14/2019*
+
+[k-rail](https://github.com/cruise-automation/k-rail/) is a policy engine designed for Kubernetes.
+k-rail is implemented as an admission webhook, without using CRDs. It provides a set of built-in
+policies, and extending policy requires writing Go program. The audit results can be fetched from
+Kubernetes events, or directly from k-rail logs.
+
+## polaris
+
+*Date: 12/14/2019*
+
+[polaris](https://github.com/FairwindsOps/polaris) is a Kubernetes validation tool: it runs a variety
+of checks to ensure that Kubernetes pods and controllers are configured using best practices.
+
+polaris contains three independent components:
+- a dashboard to audit Kubernetes cluster
+- an admission controller to ensure policy
+- a command line to test YAML configuration
 
 # Storage
 
@@ -176,11 +258,115 @@ link: [external-storage](./external-storage)
 
 link: [trident](./trident)
 
-# Application
+# Apps
 
 ## service-catalog
 
 link: [service-catalog](./service-catalog)
+
+## kubeapps
+
+[kubeapps](https://github.com/kubeapps/kubeapps) is a web-based UI for deploying and managing
+applications in Kubernetes clusters.
+
+## kruise
+
+*Date: 07/07/2019*
+
+[kruise](https://github.com/openkruise/kruise) is a set of controllers to automate application
+management in Kubernetes. It contains (for now) three controllers:
+- Advanced StatefulSet
+- BroadcastJob
+- SidecarSet
+
+The main offering from `Advanced StatefulSet` is in-place update of container image, which works by
+updating revision labels of `kruise.StatefulSet` and patching container image. Kubelet will restart
+container whose image has been updated (kubelet itself will not restart Pod). On the other hand, the
+regular `StatefulSet` in Kubernetes will delete Pods first, then create new Pods.
+
+## application
+
+*Date: 09/12/2019*
+
+[Application](https://github.com/kubernetes-sigs/application) is a project from sig-apps to provide
+rich metadata to describe an aplication, which might contain Deployment/StatefulSet/Service, etc.
+The application controller doesn't create any concrete resources, e.g. in the following example,
+the controller won't create Service, Deployment and StatefulSet for users:
+
+```yaml
+apiVersion: app.k8s.io/v1beta1
+kind: Application
+metadata:
+  name: "wordpress-01"
+  labels:
+    app.kubernetes.io/name: "wordpress-01"
+    app.kubernetes.io/version: "3"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "wordpress-01"
+  componentKinds:
+  - group: core
+    kind: Service
+  - group: apps
+    kind: Deployment
+  - group: apps
+    kind: StatefulSet
+  descriptor:
+    type: "wordpress"
+    version: "4.9.4"
+    description: "WordPress is open source software you can use to create a beautiful website, blog, or app."
+    ...
+```
+
+However, it does aggregate a bit information (only a little), primarily object status. In another
+word, the CRD is mainly used to display application-level information.
+
+## k8s-appcontroller
+
+*Date: 09/12/2019*
+
+[k8s-AppController](https://github.com/Mirantis/k8s-AppController/) is a *deprecated* project from
+mirantis for managing complext deployment. The core datastructure is `Dependency` and `Definition`.
+To some extend, the project is not a real application controller, but rather a workflow controller.
+
+Dependency is used to define application dependencies, e.g. following yaml claims the dependency
+between `pod/eventually-alive-pod` and `job/test-job`.
+
+```yaml
+apiVersion: appcontroller.k8s/v1alpha1
+kind: Dependency
+metadata:
+  name: dependency-1
+parent: pod/eventually-alive-pod
+child: job/test-job
+```
+
+To control startup sequence, we need to wrap native Kubernetes resources into `Definition`, e.g.
+the following command convert native job resource into definition.
+
+```yaml
+$ cat job.yaml | docker run -i --rm mirantis/k8s-appcontroller:latest kubeac wrap
+apiVersion: appcontroller.k8s/v1alpha1
+kind: Definition
+metadata:
+  name: job-pi
+job:
+  apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: pi
+  spec:
+    template:
+      metadata:
+        name: pi
+      spec:
+        containers:
+        - name: pi
+          image: perl:5.28-slim
+          command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+        restartPolicy: Never
+```
 
 # Developer
 
@@ -200,12 +386,13 @@ component. The server component will build the docker image and pushes the image
 well as instructing helm to install the Helm chart.
 
 *References*
-- http://blog.kubernetes.io/2017/05/draft-kubernetes-container-development.html
-- [design doc](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/design.md)
-- [installation](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/install.md)
-- [getting started](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/getting-started.md)
 
-# codegen
+- http://blog.kubernetes.io/2017/05/draft-kubernetes-container-development.html
+- [draft design doc](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/design.md)
+- [draft installation](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/install.md)
+- [draft getting started](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/getting-started.md)
+
+## codegen
 
 link: [codegen](./codegen)
 
@@ -227,9 +414,10 @@ The project is an implementation of Kubernetes custom metrics API, using the fra
 Basically, it registers itself as a third-party API service. Kubernetes core API server will proxy
 request to it, i.e. client sends requst to endpoint `/apis/custom-metrics.metrics.k8s.io/v1beta1`
 just like other standard requests; kubernetes API server then proxies the request to this adapter,
-which translate the request to prometheus query language and return the metrics result.
+which translates the request to prometheus query language and return the metrics result.
 
 *References*
+
 - [deploy adaptor](https://github.com/DirectXMan12/k8s-prometheus-adapter/tree/master/deploy)
 
 ## addon-resizer
@@ -315,6 +503,30 @@ resource usage. It will save the value in memory. The second API will simply ret
 and the last apply the recommendation to kubernetes (according to how it is deployed, i.e.
 deployment, standalone pod, etc).
 
+## kube-batch
+
+link: [kube-batch](./kube-batch)
+
+## volcano
+
+[volcano](https://volcano.sh) is built on top of kube-batch to provide batch scheduling. volcano's
+scheduler is a direct copy of kube-batch, with the following additions:
+- a new `Job` API (independent of core Kubernetes Job), allowing users to create a batch job directly from volcano
+  - the `Job` API provides features like multiple PodTemplate, better ErrorHandling, etc
+- a new admission controller component to validate Job resource
+- a new controller component to reconcile status, including job-controller, podgroup-controller,
+  queue-controller, garbagecollector-controller, etc
+- few additional actions and plugins, compared to kube-batch
+
+```
+$ kubectl get pods -n volcano-system
+NAME                                   READY   STATUS      RESTARTS   AGE
+volcano-admission-5bd5756f79-9lj4t     1/1     Running     0          49m
+volcano-admission-init-x2jlk           0/1     Completed   0          49m
+volcano-controllers-687948d9c8-q8fkm   1/1     Running     0          49m
+volcano-scheduler-79f569766f-rnwt6     1/1     Running     0          49m
+```
+
 # Virtualization
 
 ## kubevirt
@@ -325,7 +537,7 @@ link: [kubevirt](./kubevirt)
 
 *Date: 10/03/2018, v1.4.0*
 
-virtlet is created from Mirantis.
+[virtlet](https://github.com/Mirantis/virtlet) is created from Mirantis.
 
 virtlet is a Kubernetes CRI implementation for running VM workloads. It uses [criproxy](https://github.com/Mirantis/criproxy)
 to proxy requests from kubelet to virtlet (in order to support multiple runtime). Note this can be
@@ -349,8 +561,8 @@ in Pod status, e.g. Pod IP is the VM's IP.
 *References*
 
 - [introduction and comparison to other similar projects](https://www.mirantis.com/blog/virtlet-run-vms-as-kubernetes-pods/)
-- [architecture](https://github.com/Mirantis/virtlet/blob/v1.4.0/docs/architecture.md)
-- [deployment](https://github.com/Mirantis/virtlet/blob/v1.4.0/deploy/real-cluster.md)
+- [virtlet architecture](https://github.com/Mirantis/virtlet/blob/v1.4.0/docs/architecture.md)
+- [virtlet deployment](https://github.com/Mirantis/virtlet/blob/v1.4.0/deploy/real-cluster.md)
 
 # Cluster
 
@@ -460,6 +672,14 @@ resources.
 
 To test without actually installing chart, use `--dry-run` flag.
 
+**RBAC for Tiler**
+
+```bash
+kubectl create serviceaccount --namespace kube-system tiller
+kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+kubectl patch deploy --namespace kube-system tiller-deploy -p '{"spec":{"template":{"spec":{"serviceAccount":"tiller"}}}}'
+```
+
 ## ksonnet
 
 *Date: 02/22/2018, v0.8.0*
@@ -472,6 +692,10 @@ Ksonnet has relatively good documentation, read following docs in order:
 *Reference*
 
 - https://stackoverflow.com/questions/48867912/draft-vs-helm-vs-ksonnet-complementing-or-replacing
+
+## kustomize
+
+link: [kustomize](./kustomize)
 
 ## Templates
 
@@ -514,8 +738,6 @@ virtual kubelet will create equal number of containers in cloud providers.
 
 # TODOs
 
-- k8s-AppController (TODO: basic, P2)
-  https://github.com/Mirantis/k8s-AppController/
 - kube-lego (TODO: basic, P1)
   https://github.com/jetstack/kube-lego
 - smith (TODO: basic, P1)

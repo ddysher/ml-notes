@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: caas
-spec:
-  type: ExternalName
-  externalName: caas.caicloud

@@ -54,7 +54,7 @@ This requires that every node in their cluster skips masquerade for both ranges.
 to eliminate networking code from the Kubelet, so rather than extend the Kubelet to accept multiple
 CIDRs, the project allows you to run a DaemonSet that configures a list of CIDRs as non-masquerade.
 
-*Updates on 04/07/2018, kubernetes 1.10*
+*Update on 04/07/2018, kubernetes v1.10*
 
 The [project](https://github.com/mtaufen/ip-masq-agent) is proposed to kubernetes incubator, which is
 approved and then moved to [incubator](https://github.com/kubernetes-incubator/ip-masq-agent)

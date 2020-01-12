@@ -28,8 +28,8 @@ generic ingress controller in turn calls specific backend (e.g. nginx, haproxy, 
 update, reload, etc. There is an interface `Controller` that defines several methods like Reload,
 OnUpdate, etc, to be implemented by an ingress backend.
 
-*Updates on 04/07/2018, v0.12*
-*Updates on 12/13/2018, v0.21*
+- *Update on 04/07/2018, v0.12*
+- *Update on 12/13/2018, v0.21*
 
 Repository moved from [ingress](https://github.com/kubernetes/ingress) to [ingress-nginx](https://github.com/kubernetes/ingress-nginx).
 It no longer tries to be a generic controller to provide an interface for all backend implementations,
@@ -38,7 +38,11 @@ instead, it now focuses only on nginx.
 For nginx controller design, refere to [this doc](https://github.com/kubernetes/ingress-nginx/blob/nginx-0.21.0/docs/how-it-works.md).
 In particular, nginx controller now avoids reloading nginx when kubernetes endpoints changed, that
 is, it will not relaod nginx when pod gets deleted, replaced, etc. It achieves by using lua module,
-which shares memory region with nginx.
+which shares memory region with nginx. The nginx template can be found [here](https://github.com/kubernetes/ingress-nginx/blob/nginx-0.21.0/rootfs/etc/nginx/template/nginx.tmpl)
+and lua code [here](https://github.com/kubernetes/ingress-nginx/tree/nginx-0.21.0/rootfs/etc/nginx/lua).
+At OpenResty side, the core method [set_current_peer](https://github.com/openresty/lua-resty-core/blob/v0.1.17/lib/ngx/balancer.md#set_current_peer)
+is defined in [lua-resty-core#balancer.lua](https://github.com/openresty/lua-resty-core/blob/v0.1.17/lib/ngx/balancer.lua#106),
+which eventually calls into ffi_C method defined in [lua-nginx-module#ngx_http_lua_balancer.c](https://github.com/openresty/lua-nginx-module/blob/v0.10.15/src/ngx_http_lua_balancer.c#L472).
 
 ## nginx configuration
 

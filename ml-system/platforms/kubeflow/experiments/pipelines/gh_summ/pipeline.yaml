@@ -1,0 +1,550 @@
+"apiVersion": |-
+  argoproj.io/v1alpha1
+"kind": |-
+  Workflow
+"metadata":
+  "annotations":
+    "pipelines.kubeflow.org/pipeline_spec": |-
+      {"description": "Demonstrate Tensor2Tensor-based training and TF-Serving", "inputs": [{"default": "2019300", "name": "train_steps", "type": "Integer"}, {"default": "YOUR_PROJECT_HERE", "name": "project"}, {"default": "YOUR_GITHUB_TOKEN_HERE", "name": "github_token"}, {"default": "gs://YOUR_GCS_DIR_HERE", "name": "working_dir"}, {"default": "gs://aju-dev-demos-codelabs/kubecon/model_output_tbase.bak2019000/", "name": "checkpoint_dir"}, {"default": "true", "name": "deploy_webapp"}, {"default": "gs://aju-dev-demos-codelabs/kubecon/t2t_data_gh_all/", "name": "data_dir"}], "name": "Github issue summarization"}
+  "generateName": |-
+    github-issue-summarization-
+"spec":
+  "arguments":
+    "parameters":
+    - "name": |-
+        train_steps
+      "value": |-
+        2019300
+    - "name": |-
+        project
+      "value": |-
+        YOUR_PROJECT_HERE
+    - "name": |-
+        github_token
+      "value": |-
+        YOUR_GITHUB_TOKEN_HERE
+    - "name": |-
+        working_dir
+      "value": |-
+        gs://YOUR_GCS_DIR_HERE
+    - "name": |-
+        checkpoint_dir
+      "value": |-
+        gs://aju-dev-demos-codelabs/kubecon/model_output_tbase.bak2019000/
+    - "name": |-
+        deploy_webapp
+      "value": |-
+        true
+    - "name": |-
+        data_dir
+      "value": |-
+        gs://aju-dev-demos-codelabs/kubecon/t2t_data_gh_all/
+  "entrypoint": |-
+    github-issue-summarization
+  "serviceAccountName": |-
+    pipeline-runner
+  "templates":
+  - "dag":
+      "tasks":
+      - "arguments":
+          "parameters":
+          - "name": |-
+              github_token
+            "value": |-
+              {{inputs.parameters.github_token}}
+        "name": |-
+          webapp
+        "template": |-
+          webapp
+    "inputs":
+      "parameters":
+      - "name": |-
+          github_token
+    "name": |-
+      condition-1
+  - "container":
+      "args":
+      - |-
+        --data-dir
+      - |-
+        {{inputs.parameters.data_dir}}
+      - |-
+        --checkpoint-dir
+      - |-
+        {{inputs.parameters.checkpoint_dir}}
+      - |-
+        --action
+      - |-
+        copy_data
+      - |-
+        --model-dir
+      - |-
+        {{inputs.parameters.working_dir}}/{{workflow.uid}}/model_output
+      - |-
+        --copy-output-path
+      - |-
+        /tmp/outputs/copy_output_path/data
+      "command": []
+      "env":
+      - "name": |-
+          KFP_POD_NAME
+        "value": |-
+          {{pod.name}}
+      - "name": |-
+          GOOGLE_APPLICATION_CREDENTIALS
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      - "name": |-
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      - "name": |-
+          KFP_POD_NAME
+        "valueFrom":
+          "fieldRef":
+            "fieldPath": |-
+              metadata.name
+      - "name": |-
+          KFP_NAMESPACE
+        "valueFrom":
+          "fieldRef":
+            "fieldPath": |-
+              metadata.namespace
+      "image": |-
+        gcr.io/google-samples/ml-pipeline-t2ttrain:v3ap
+      "volumeMounts":
+      - "mountPath": |-
+          /secret/gcp-credentials
+        "name": |-
+          gcp-credentials-user-gcp-sa
+    "inputs":
+      "parameters":
+      - "name": |-
+          checkpoint_dir
+      - "name": |-
+          data_dir
+      - "name": |-
+          working_dir
+    "metadata":
+      "annotations":
+        "pipelines.kubeflow.org/component_spec": |-
+          {"description": "A Kubeflow Pipeline component to copy training checkpoint data from one bucket\nto another\n", "inputs": [{"description": "...", "name": "data_dir", "type": "GCSPath"}, {"description": "...", "name": "checkpoint_dir", "type": "GCSPath"}, {"description": "...", "name": "model_dir", "type": "GCSPath"}, {"description": "...", "name": "action", "type": "String"}], "metadata": {"labels": {"add-pod-env": "true"}}, "name": "Copy training checkpoint data", "outputs": [{"description": "...", "name": "copy_output_path", "type": "GCSPath"}]}
+      "labels":
+        "add-pod-env": |-
+          true
+    "name": |-
+      copy-training-checkpoint-data
+    "outputs":
+      "artifacts":
+      - "name": |-
+          copy-training-checkpoint-data-copy_output_path
+        "path": |-
+          /tmp/outputs/copy_output_path/data
+      "parameters":
+      - "name": |-
+          copy-training-checkpoint-data-copy_output_path
+        "valueFrom":
+          "path": |-
+            /tmp/outputs/copy_output_path/data
+    "volumes":
+    - "name": |-
+        gcp-credentials-user-gcp-sa
+      "secret":
+        "secretName": |-
+          user-gcp-sa
+  - "dag":
+      "tasks":
+      - "arguments":
+          "parameters":
+          - "name": |-
+              github_token
+            "value": |-
+              {{inputs.parameters.github_token}}
+        "dependencies":
+        - |-
+          serve
+        - |-
+          train-t2t-model
+        "name": |-
+          condition-1
+        "template": |-
+          condition-1
+        "when": |-
+          "{{tasks.train-t2t-model.outputs.parameters.train-t2t-model-launch_server}}" == "true"
+      - "arguments":
+          "parameters":
+          - "name": |-
+              checkpoint_dir
+            "value": |-
+              {{inputs.parameters.checkpoint_dir}}
+          - "name": |-
+              data_dir
+            "value": |-
+              {{inputs.parameters.data_dir}}
+          - "name": |-
+              working_dir
+            "value": |-
+              {{inputs.parameters.working_dir}}
+        "name": |-
+          copy-training-checkpoint-data
+        "template": |-
+          copy-training-checkpoint-data
+      - "arguments":
+          "parameters":
+          - "name": |-
+              data_dir
+            "value": |-
+              {{inputs.parameters.data_dir}}
+        "dependencies":
+        - |-
+          copy-training-checkpoint-data
+        "name": |-
+          log-metadata
+        "template": |-
+          log-metadata
+      - "arguments":
+          "parameters":
+          - "name": |-
+              train-t2t-model-train_output_path
+            "value": |-
+              {{tasks.train-t2t-model.outputs.parameters.train-t2t-model-train_output_path}}
+        "dependencies":
+        - |-
+          train-t2t-model
+        "name": |-
+          log-metadata-2
+        "template": |-
+          log-metadata-2
+      - "arguments":
+          "parameters":
+          - "name": |-
+              train-t2t-model-train_output_path
+            "value": |-
+              {{tasks.train-t2t-model.outputs.parameters.train-t2t-model-train_output_path}}
+        "dependencies":
+        - |-
+          train-t2t-model
+        "name": |-
+          serve
+        "template": |-
+          serve
+      - "arguments":
+          "parameters":
+          - "name": |-
+              copy-training-checkpoint-data-copy_output_path
+            "value": |-
+              {{tasks.copy-training-checkpoint-data.outputs.parameters.copy-training-checkpoint-data-copy_output_path}}
+          - "name": |-
+              data_dir
+            "value": |-
+              {{inputs.parameters.data_dir}}
+          - "name": |-
+              deploy_webapp
+            "value": |-
+              {{inputs.parameters.deploy_webapp}}
+          - "name": |-
+              train_steps
+            "value": |-
+              {{inputs.parameters.train_steps}}
+        "dependencies":
+        - |-
+          copy-training-checkpoint-data
+        "name": |-
+          train-t2t-model
+        "template": |-
+          train-t2t-model
+    "inputs":
+      "parameters":
+      - "name": |-
+          checkpoint_dir
+      - "name": |-
+          data_dir
+      - "name": |-
+          deploy_webapp
+      - "name": |-
+          github_token
+      - "name": |-
+          train_steps
+      - "name": |-
+          working_dir
+    "name": |-
+      github-issue-summarization
+  - "container":
+      "args":
+      - |-
+        --log-type
+      - |-
+        dataset
+      - |-
+        --workspace-name
+      - |-
+        ws_gh_summ
+      - |-
+        --run-name
+      - |-
+        {{workflow.uid}}
+      - |-
+        --data-uri
+      - |-
+        {{inputs.parameters.data_dir}}
+      - |-
+        --model-uri
+      - ""
+      "command": []
+      "env":
+      - "name": |-
+          KFP_POD_NAME
+        "value": |-
+          {{pod.name}}
+      - "name": |-
+          KFP_POD_NAME
+        "valueFrom":
+          "fieldRef":
+            "fieldPath": |-
+              metadata.name
+      - "name": |-
+          KFP_NAMESPACE
+        "valueFrom":
+          "fieldRef":
+            "fieldPath": |-
+              metadata.namespace
+      "image": |-
+        gcr.io/google-samples/ml-pipeline-metadata-logger:v1
+    "inputs":
+      "parameters":
+      - "name": |-
+          data_dir
+    "metadata":
+      "annotations":
+        "pipelines.kubeflow.org/component_spec": |-
+          {"description": "A Kubeflow Pipeline component to log dataset or model metadata\n", "inputs": [{"description": "...", "name": "log_type", "type": "String"}, {"description": "...", "name": "workspace_name", "type": "String"}, {"description": "...", "name": "run_name", "type": "String"}, {"default": "", "description": "...", "name": "data_uri", "type": "GCSPath"}, {"default": "", "description": "...", "name": "model_uri", "type": "GCSPath"}], "metadata": {"labels": {"add-pod-env": "true"}}, "name": "log_metadata"}
+      "labels":
+        "add-pod-env": |-
+          true
+    "name": |-
+      log-metadata
+  - "container":
+      "args":
+      - |-
+        --log-type
+      - |-
+        model
+      - |-
+        --workspace-name
+      - |-
+        ws_gh_summ
+      - |-
+        --run-name
+      - |-
+        {{workflow.uid}}
+      - |-
+        --data-uri
+      - ""
+      - |-
+        --model-uri
+      - |-
+        {{inputs.parameters.train-t2t-model-train_output_path}}
+      "command": []
+      "env":
+      - "name": |-
+          KFP_POD_NAME
+        "value": |-
+          {{pod.name}}
+      - "name": |-
+          KFP_POD_NAME
+        "valueFrom":
+          "fieldRef":
+            "fieldPath": |-
+              metadata.name
+      - "name": |-
+          KFP_NAMESPACE
+        "valueFrom":
+          "fieldRef":
+            "fieldPath": |-
+              metadata.namespace
+      "image": |-
+        gcr.io/google-samples/ml-pipeline-metadata-logger:v1
+    "inputs":
+      "parameters":
+      - "name": |-
+          train-t2t-model-train_output_path
+    "metadata":
+      "annotations":
+        "pipelines.kubeflow.org/component_spec": |-
+          {"description": "A Kubeflow Pipeline component to log dataset or model metadata\n", "inputs": [{"description": "...", "name": "log_type", "type": "String"}, {"description": "...", "name": "workspace_name", "type": "String"}, {"description": "...", "name": "run_name", "type": "String"}, {"default": "", "description": "...", "name": "data_uri", "type": "GCSPath"}, {"default": "", "description": "...", "name": "model_uri", "type": "GCSPath"}], "metadata": {"labels": {"add-pod-env": "true"}}, "name": "log_metadata"}
+      "labels":
+        "add-pod-env": |-
+          true
+    "name": |-
+      log-metadata-2
+  - "container":
+      "args":
+      - |-
+        --model_name
+      - |-
+        ghsumm-{{workflow.uid}}
+      - |-
+        --model_path
+      - |-
+        {{inputs.parameters.train-t2t-model-train_output_path}}
+      "env":
+      - "name": |-
+          GOOGLE_APPLICATION_CREDENTIALS
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      - "name": |-
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      "image": |-
+        gcr.io/google-samples/ml-pipeline-kubeflow-tfserve:v2
+      "volumeMounts":
+      - "mountPath": |-
+          /secret/gcp-credentials
+        "name": |-
+          gcp-credentials-user-gcp-sa
+    "inputs":
+      "parameters":
+      - "name": |-
+          train-t2t-model-train_output_path
+    "name": |-
+      serve
+    "volumes":
+    - "name": |-
+        gcp-credentials-user-gcp-sa
+      "secret":
+        "secretName": |-
+          user-gcp-sa
+  - "container":
+      "args":
+      - |-
+        --data-dir
+      - |-
+        {{inputs.parameters.data_dir}}
+      - |-
+        --action
+      - |-
+        train
+      - |-
+        --model-dir
+      - |-
+        {{inputs.parameters.copy-training-checkpoint-data-copy_output_path}}
+      - |-
+        --train-steps
+      - |-
+        {{inputs.parameters.train_steps}}
+      - |-
+        --deploy-webapp
+      - |-
+        {{inputs.parameters.deploy_webapp}}
+      - |-
+        --train-output-path
+      - |-
+        /tmp/outputs/train_output_path/data
+      "command": []
+      "env":
+      - "name": |-
+          KFP_POD_NAME
+        "value": |-
+          {{pod.name}}
+      - "name": |-
+          GOOGLE_APPLICATION_CREDENTIALS
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      - "name": |-
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+        "value": |-
+          /secret/gcp-credentials/user-gcp-sa.json
+      - "name": |-
+          KFP_POD_NAME
+        "valueFrom":
+          "fieldRef":
+            "fieldPath": |-
+              metadata.name
+      - "name": |-
+          KFP_NAMESPACE
+        "valueFrom":
+          "fieldRef":
+            "fieldPath": |-
+              metadata.namespace
+      "image": |-
+        gcr.io/google-samples/ml-pipeline-t2ttrain:v3ap
+      "resources":
+        "limits":
+          "memory": |-
+            48G
+          "nvidia.com/gpu": !!int |-
+            1
+      "volumeMounts":
+      - "mountPath": |-
+          /secret/gcp-credentials
+        "name": |-
+          gcp-credentials-user-gcp-sa
+    "inputs":
+      "parameters":
+      - "name": |-
+          copy-training-checkpoint-data-copy_output_path
+      - "name": |-
+          data_dir
+      - "name": |-
+          deploy_webapp
+      - "name": |-
+          train_steps
+    "metadata":
+      "annotations":
+        "pipelines.kubeflow.org/component_spec": |-
+          {"description": "A Kubeflow Pipeline component to train a Tensor2Tensor\nmodel\n", "inputs": [{"default": 2019300, "description": "...", "name": "train_steps", "type": "Integer"}, {"description": "...", "name": "data_dir", "type": "GCSPath"}, {"description": "...", "name": "model_dir", "type": "GCSPath"}, {"description": "...", "name": "action", "type": "String"}, {"description": "...", "name": "deploy_webapp", "type": "String"}], "metadata": {"labels": {"add-pod-env": "true"}}, "name": "Train T2T model", "outputs": [{"description": "...", "name": "launch_server", "type": "String"}, {"description": "...", "name": "train_output_path", "type": "GCSPath"}, {"name": "MLPipeline UI metadata", "type": "UI metadata"}]}
+      "labels":
+        "add-pod-env": |-
+          true
+    "name": |-
+      train-t2t-model
+    "outputs":
+      "artifacts":
+      - "name": |-
+          mlpipeline-ui-metadata
+        "path": |-
+          /mlpipeline-ui-metadata.json
+      - "name": |-
+          train-t2t-model-launch_server
+        "path": |-
+          /tmp/output
+      - "name": |-
+          train-t2t-model-train_output_path
+        "path": |-
+          /tmp/outputs/train_output_path/data
+      "parameters":
+      - "name": |-
+          train-t2t-model-launch_server
+        "valueFrom":
+          "path": |-
+            /tmp/output
+      - "name": |-
+          train-t2t-model-train_output_path
+        "valueFrom":
+          "path": |-
+            /tmp/outputs/train_output_path/data
+    "volumes":
+    - "name": |-
+        gcp-credentials-user-gcp-sa
+      "secret":
+        "secretName": |-
+          user-gcp-sa
+  - "container":
+      "args":
+      - |-
+        --model_name
+      - |-
+        ghsumm-{{workflow.uid}}
+      - |-
+        --github_token
+      - |-
+        {{inputs.parameters.github_token}}
+      "image": |-
+        gcr.io/google-samples/ml-pipeline-webapp-launcher:v3ap
+    "inputs":
+      "parameters":
+      - "name": |-
+          github_token
+    "name": |-
+      webapp

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - image: grafana/grafana:6.1.6
+          name: grafana
+          ports:
+            - containerPort: 3000
+          resources:
+            limits:
+              cpu: 500m
+              memory: 2500Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          volumeMounts:
+            - mountPath: /var/lib/grafana
+              name: data
+      restartPolicy: Always
+      volumes:
+        - emptyDir: {}
+          name: data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: kube-system
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 32064
+  selector:
+    app: grafana
+  type: NodePort

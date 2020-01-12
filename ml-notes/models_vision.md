@@ -88,6 +88,36 @@ accuracy by a significant stride in comparison to traditional methodologies. Ale
 one of the most influential papers published in computer vision, having spurred many more papers
 published employing CNNs and GPUs to accelerate deep learning.
 
+Overall architecture of AlexNet:
+
+<p align="center"><img src="./assets/alexnet-arch.png" height="240px" width="auto"></p>
+
+> Now we are ready to describe the overall architecture of our CNN. As depicted in Figure 2, the
+> net contains eight layers with weights; the first five are convolutional and the remaining three
+> are fully- connected. The output of the last fully-connected layer is fed to a 1000-way softmax
+> which produces a distribution over the 1000 class labels. Our network maximizes the multinomial
+> logistic regression objective, which is equivalent to maximizing the average across training
+> cases of the log-probability of the correct label under the prediction distribution.
+>
+> The kernels of the second, fourth, and fifth convolutional layers are connected only to those
+> kernel maps in the previous layer which reside on the same GPU (see Figure 2). The kernels of the
+> third convolutional layer are connected to all kernel maps in the second layer. The neurons in
+> the fully- connected layers are connected to all neurons in the previous layer. Response-normalization
+> layers follow the first and second convolutional layers. Max-pooling layers, of the kind described
+> in Section 3.4, follow both response-normalization layers as well as the fifth convolutional layer.
+> The ReLU non-linearity is applied to the output of every convolutional and fully-connected layer.
+>
+> The first convolutional layer filters the 224 × 224 × 3 input image with 96 kernels of size
+> 11 × 11 × 3 with a stride of 4 pixels (this is the distance between the receptive field centers
+> of neighboring neurons in a kernel map). The second convolutional layer takes as input the
+> (response-normalized and pooled) output of the first convolutional layer and filters it with 256
+> kernels of size 5 × 5 × 48. The third, fourth, and fifth convolutional layers are connected to one
+> another without any intervening pooling or normalization layers. The third convolutional layer has
+> 384 kernels of size 3 × 3 × 256 connected to the (normalized, pooled) outputs of the second
+> convolutional layer. The fourth convolutional layer has 384 kernels of size 3 × 3 × 192 , and the
+> fifth convolutional layer has 256 kernels of size 3 × 3 × 192. The fully-connected layers have
+> 4096 neurons each.
+
 Quick notes:
 - AlexNet uses ReLU (Rectified Linear Unit) for the non-linear part, instead of a Tanh or Sigmoid
   function which was the earlier standard for traditional neural networks.
@@ -2010,7 +2040,7 @@ dimension, called `stage`. The last feature map of a stage is used for lateral c
 not used since its spatial dimension is quite large.
 
 M2-M5 are feature maps in top-down pathway, each one is the result of applying feature maps of C2-C5
-and 2x scale of previous map. C2-C5 has 1x1 convolution to reduce dimension, and the 2x scale if to
+and 2x scale of previous map. C2-C5 has 1x1 convolution to reduce dimension, and the 2x scale is to
 match spatial dimension (using nearest neighbor upsampling for simplicity). This lateral connection
 combines semantic information from M and spatial information from C. Note the 3x3 convolution applied
 to M2-M4 (all merged layers) is to remove aliasing effect.
@@ -2575,6 +2605,7 @@ clipping algorithm to shrink the original polygon `pn` by `di` pixels and get sh
 *References*
 
 - https://zhuanlan.zhihu.com/p/37884603
+- https://zhuanlan.zhihu.com/p/68058851
 
 # Models: Face Recognition
 

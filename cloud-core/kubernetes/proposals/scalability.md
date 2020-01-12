@@ -16,6 +16,8 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 > A collection of proposals, designs, features in Kubernetes resource management
+
+- [SIG-Scalability Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/scalability)
 - [SIG-Scalability Community](https://github.com/kubernetes/community/tree/master/sig-scalability)
 
 # Feature & Design
@@ -96,7 +98,7 @@ A few notes:
   i.e. use pod IP as node IP
 - The benchmark design doc identify metrics to judge how similar it is between the results of kubemark
   and real cluster
-- kubemark is a separate binary under 'kubernetes/cmd/kubemark' with launch option in kubelet morph
+- kubemark is a separate binary under `kubernetes/cmd/kubemark` with launch option in kubelet morph
   mode or kubeproxy morph mode; the binary first mocks out operations with side effect (e.g. mock out
   iptables interface) and then run real kubelet/kubeproxy code
 

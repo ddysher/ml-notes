@@ -14,6 +14,7 @@
 
 > A collection of proposals, designs, features in Kubernetes resource management
 
+- [Resource Management Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/resource-management)
 - [Resource Management Working Group](https://github.com/kubernetes/community/tree/master/wg-resource-management)
 - [SIG-Node Community (Partially)](https://github.com/kubernetes/community/tree/master/sig-node)
 
@@ -21,7 +22,8 @@
 
 ## cpu manager
 
-*Date: 09/28/2017, v1.8, alpha*
+- *Date: 09/28/2017, v1.8, alpha*
+- *Date: 06/14/2018, v1.10, beta*
 
 There is no CPU affinity in kubernetes, thus if a Pod requesting 1 or more CPUs, it will context
 switch to different CPUs. This results in bad cache hits, introducing latencies in kernel process
@@ -43,19 +45,19 @@ are two policies:
   exclusive CPU remains assigned to a single container for the lifetime of the pod (until it becomes
   terminal.)
 
-*Update on 06/14/2018, v1.10, beta*
-
-CPU Manager feature has reached beta. The feature is enabled by default and the default option is
-'none', which is the existing behavior.
+CPU Manager feature has reached beta in v1.10. It is enabled by default and the default option is
+`none`, which is the existing behavior.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/c4d900e55bf67ba87eb7e4c368a8486ff4ca3761/contributors/design-proposals/node/cpu-manager.md)
+- [cpu manager design doc](https://github.com/kubernetes/community/blob/c4d900e55bf67ba87eb7e4c368a8486ff4ca3761/contributors/design-proposals/node/cpu-manager.md)
 - https://github.com/kubernetes/kubernetes/pull/51929
 
 ## device plugin, or device manager
 
-*Date: 09/16/2017, v1.8, alpha*
+- *Date: 09/16/2017, v1.8, alpha*
+- *Date: 06/23/2018, v1.10, beta*
+- *Date: 08/05/2018, v1.11, beta*
 
 **Proposal**
 
@@ -64,7 +66,11 @@ the pod mechanism or in bare metal mode. These servers implement the gRPC interf
 in this design document and once the device plugin makes itself known to kubelet, kubelet will
 interact with the device through two simple functions:
 - A ListAndWatch function for the kubelet to Discover the devices and their properties as well as notify of any status change (device became unhealthy).
-- An Allocate function which is called before creating a user container consuming  any exported devices.
+- An Allocate function which is called before creating a user container consuming any exported devices.
+
+Implementation-wise, Kubelet will list & watch device plugins via `ListAndWatch`, and maintains an
+in-memory copy of all healthy devices. Kubelet is responsible to choose the appropriate devices once
+containers are created but not started, and then passes device ID to `Allocate` function.
 
 On failure cases:
 - If device fails, device plugin will signal kubelet about the failed device and kubelet will fail
@@ -91,10 +97,6 @@ On failure cases:
 - http://bit.ly/2xNxIzw
 - http://bit.ly/2psMXKK
 
-*Update on 06/23/2018, v1.10, beta*
-
-Device plugin feature has reached beta.
-
 *Update on 08/05/2018, v1.11, beta*
 
 Device plugin registration changes from device registration to kubelet probing model, for more detail,
@@ -102,13 +104,14 @@ see plugin watcher proposal in `node.md`.
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/c4d900e55bf67ba87eb7e4c368a8486ff4ca3761/contributors/design-proposals/resource-management/device-plugin.md)
+- [device plugin design doc](https://github.com/kubernetes/community/blob/c4d900e55bf67ba87eb7e4c368a8486ff4ca3761/contributors/design-proposals/resource-management/device-plugin.md)
 - https://docs.google.com/document/d/1LHeTPx_fWA1PdZkHuALPzYxR0AYXUiiXdo3S0g2VSlo/edit
 - https://github.com/kubernetes/community/pull/695
 
 ## hugepages support
 
-*Date: 09/28/2017, v1.8, alpha*
+- *Date: 09/28/2017, v1.8, alpha*
+- *Date: 06/23/2018, v1.10, beta*
 
 The proposal enables kubernetes to support hugepages, and has a relatively narrow scope to only
 support huge page allocated at boot time or by manual dynamic allocation. Features like kubelet
@@ -271,10 +274,6 @@ spec:
       medium: HugePages
 ```
 
-*Update on 06/23/2018, v1.10, beta*
-
-Hugepage support feature has reached beta.
-
 *Update on 09/24/2018*
 
 Another [downstream implementation from intel](https://github.com/intelsdi-x/kubernetes/pull/55/files),
@@ -302,13 +301,13 @@ spec:
 
 *References*
 
-- [design doc](  https://github.com/kubernetes/community/blob/c4d900e55bf67ba87eb7e4c368a8486ff4ca3761/contributors/design-proposals/resource-management/hugepages.md)
+- [hugepages design doc](https://github.com/kubernetes/community/blob/c4d900e55bf67ba87eb7e4c368a8486ff4ca3761/contributors/design-proposals/resource-management/hugepages.md)
 - https://lwn.net/Articles/499255/
 - https://www.kernel.org/doc/Documentation/cgroup-v1/hugetlb.txt
 
 ## resource quota scoping
 
-*Date: 06/23/2018, v1.10, ga*
+*Date: 06/23/2018, v1.10, stable*
 
 The proposal first identifies a couple use cases:
 - Improve resource quota to also include request & limit, to give cluster admin more control over
@@ -329,7 +328,7 @@ hard for cluster admin to reason about quota usage since he/she must know semant
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/resource-management/resource-quota-scoping.md)
+- [resource quota scoping design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/resource-management/resource-quota-scoping.md)
 
 ## resource class
 
@@ -467,13 +466,6 @@ ProvisionConfig {
 }
 ```
 
-*References*
-
-- [design doc v1](https://github.com/vikaschoudhary16/community/blob/53c2a804aa6fc936baa2bf35e854c62737b58dba/contributors/design-proposals/resource-class.md)
-- [design doc v2](https://github.com/vikaschoudhary16/community/blob/814999c7493371a162322e7e23725e36279b128a/contributors/design-proposals/resource-class.md)
-- https://github.com/kubernetes/community/pull/782
-- https://docs.google.com/document/d/1666PPUs4Lz56TqKygcy6mXkNazde-vwA7q4e5H92sUc/edit
-
 **Useful discussions**
 
 - https://github.com/Kubernetes/community/pull/782#issuecomment-313589838
@@ -482,9 +474,16 @@ ProvisionConfig {
 - http://bit.ly/2NxQW77
 - http://bit.ly/2DqXQqc
 
+*References*
+
+- [resource class design doc v1](https://github.com/vikaschoudhary16/community/blob/53c2a804aa6fc936baa2bf35e854c62737b58dba/contributors/design-proposals/resource-class.md)
+- [resource class design doc v2](https://github.com/vikaschoudhary16/community/blob/814999c7493371a162322e7e23725e36279b128a/contributors/design-proposals/resource-class.md)
+- https://github.com/kubernetes/community/pull/782
+- https://docs.google.com/document/d/1666PPUs4Lz56TqKygcy6mXkNazde-vwA7q4e5H92sUc/edit
+
 ## node performance isolation
 
-*Date: 09/24/2018*
+*Date: 09/24/2018, design*
 
 Document Summary:
 > This document outlines how the Kubernetes node enables performance isolation primitives across

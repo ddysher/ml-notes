@@ -12,7 +12,8 @@
 
 > A collection of proposals, designs, features in Kubernetes multicluster.
 
-- [SIG-Multicluster](https://github.com/kubernetes/community/tree/master/sig-multicluster)
+- [SIG-Multicluster Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/multicluster)
+- [SIG-Multicluster Community](https://github.com/kubernetes/community/tree/master/sig-multicluster)
 
 # Feature & Design
 
@@ -31,7 +32,7 @@ important notes from the design doc:
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/1171a23ab2e4f8950cb1b88a007e2aae8c7bb194/contributors/design-proposals/multicluster/cluster-registry/api-design.md)
+- [cluster registry design doc](https://github.com/kubernetes/community/blob/1171a23ab2e4f8950cb1b88a007e2aae8c7bb194/contributors/design-proposals/multicluster/cluster-registry/api-design.md)
 - https://github.com/kubernetes/cluster-registry
 
 ## cluster selector
@@ -61,7 +62,7 @@ metadata:
 
 *References*
 
-- [design doc](https://github.com/kubernetes/community/blob/b33dca0b5bffcc9513cb5f4cb00a05b1812c4b94/contributors/design-proposals/multicluster/federation-clusterselector.md)
+- [federation cluster selector design doc](https://github.com/kubernetes/community/blob/b33dca0b5bffcc9513cb5f4cb00a05b1812c4b94/contributors/design-proposals/multicluster/federation-clusterselector.md)
 
 ## federation v1
 
@@ -189,8 +190,8 @@ Forwarding rule mci1-fw--zone-printer created successfully
 *References*
 
 - https://github.com/GoogleCloudPlatform/k8s-multicluster-ingress
-- https://medium.com/google-cloud/planet-scale-microservices-with-cluster-federation-and-global-load-balancing-on-kubernetes-and-cd182f981653
-- https://medium.com/google-cloud/planet-scale-microservices-with-cluster-federation-and-global-load-balancing-on-kubernetes-and-a8e7ef5efa5e
+- [cluster-federation-and-global-load-balancing-on-kubernetes-1](https://medium.com/google-cloud/planet-scale-microservices-with-cluster-federation-and-global-load-balancing-on-kubernetes-and-cd182f981653)
+- [cluster-federation-and-global-load-balancing-on-kubernetes-2](https://medium.com/google-cloud/planet-scale-microservices-with-cluster-federation-and-global-load-balancing-on-kubernetes-and-a8e7ef5efa5e)
 
 **federation v1 - federated HPA**
 
@@ -224,11 +225,11 @@ cluster has a sophisticated dns resolution, see above proposal.
 
 *References*
 
-- [design doc](  https://github.com/kubernetes/community/blob/b33dca0b5bffcc9513cb5f4cb00a05b1812c4b94/contributors/design-proposals/multicluster/federated-services.md)
+- [federated service design doc](  https://github.com/kubernetes/community/blob/b33dca0b5bffcc9513cb5f4cb00a05b1812c4b94/contributors/design-proposals/multicluster/federated-services.md)
 
 **federation v1 - references**
 
-- [design doc](https://github.com/kubernetes/community/blob/1171a23ab2e4f8950cb1b88a007e2aae8c7bb194/contributors/design-proposals/multicluster/federation.md)
+- [federation design doc](https://github.com/kubernetes/community/blob/1171a23ab2e4f8950cb1b88a007e2aae8c7bb194/contributors/design-proposals/multicluster/federation.md)
 - https://github.com/kubernetes/federation
 - https://github.com/kelseyhightower/kubernetes-cluster-federation
 - https://medium.com/@shakamunyi/kubernetes-federation-achieving-higher-availability-for-your-applications-1d527e5e4b3
@@ -312,5 +313,5 @@ and higher-order behaviors like policy-based placement and dynamic scheduling.
 
 *References*
 
-- [design doc](https://docs.google.com/document/d/1ihWETo-zE8U_QNuzw5ECxOWX0Df_2BVfO3lC4OesKRQ/edit#)
+- [federation v2 design doc](https://docs.google.com/document/d/1ihWETo-zE8U_QNuzw5ECxOWX0Df_2BVfO3lC4OesKRQ/edit#)
 - https://kubernetes.io/blog/2018/12/12/kubernetes-federation-evolution/

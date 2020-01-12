@@ -2,6 +2,10 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
+- [KEPs](#keps)
+  - [metrics overhaul](#metrics-overhaul)
+  - [control-plane metrics stability](#control-plane-metrics-stability)
+  - [metrics watch api](#metrics-watch-api)
 - [Feature & Design](#feature--design)
   - [monitoring architecture](#monitoring-architecture)
   - [resource metrics api](#resource-metrics-api)
@@ -19,8 +23,83 @@
 
 > A collection of proposals, designs, features in Kubernetes instrumentation and autoscaling.
 
+- [SIG-Instrumentation KEPs](https://github.com/kubernetes/enhancements/blob/master/keps/sig-instrumentation)
+- [SIG-Instrumentation Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/instrumentation)
 - [SIG-Instrumentation Community](https://github.com/kubernetes/community/tree/master/sig-instrumentation)
+- [SIG-Autoscaling KEPs](https://github.com/kubernetes/enhancements/blob/master/keps/sig-autoscaling)
+- [SIG-Autoscaling Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/autoscaling)
 - [SIG-Autoscaling Community](https://github.com/kubernetes/community/tree/master/sig-autoscaling)
+
+# KEPs
+
+## metrics overhaul
+
+SIG-instrumentation proposes a "Instrumentation Guidelines" to make Kubernetes metrics instrumentation
+more consistent. The KEP aims to fix various parts of the kubernetes/kubernetes repository to conform
+to this guideline. Some of the fixes include:
+- rename "pod_name" to "pod" to make naming consistent
+- switch some kubelet, etcd, etc, metrics from "summary" to "histogram" metrics type for aggregation
+  (summary metrics type doesn't support aggregation)
+- change unit, e.g. from `sync_proxy_rules_latency_microseconds` to `sync_proxy_rules_latency_seconds`
+- etc.
+
+*References*
+
+- [metrics overhaul KEP link](https://github.com/kubernetes/enhancements/blob/f701ae66b466a9c8e6789b7c5135924949617ea7/keps/sig-instrumentation/20181106-kubernetes-metrics-overhaul.md)
+
+## control-plane metrics stability
+
+*Date: 2019/08/18*
+
+Kubernetes control-plane components, i.e. apiserver, scheduler, controller manager, provide quite a
+few prometheus metrics for external usages, those metrics can be queried via `/metrics` endpoint in
+respective component server (listening ports can be found at `pkg/master/ports/ports.go`). However,
+those metrics are added without API review, and stability is not guaranteed, meaning that metric
+name, set of labels, etc, can change without notice, making it hard to build external systems on top
+of the metrics.
+
+The KEP proposes a way to mitigate this issue by:
+- customizing prometheus client to add two fields to each metric, i.e. `StabilityLevel`, `DeprecatedVersion`
+- enforcing a formal review process (and conformance test)
+
+For example, following is an alpha-level metric:
+
+```go
+var alphaMetricDefinition = kubemetrics.CounterOpts{
+    Name: "some_alpha_metric",
+    Help: "some description",
+    StabilityLevel: kubemetrics.ALPHA, // this is also a custom metadata field
+    DeprecatedVersion: "1.15", // this can optionally be included on alpha metrics, although there is no change to contractual stability guarantees
+}
+
+var alphaMetric = kubemetrics.NewCounterVec{
+    alphaMetricDefinition, // this is also our custom wrapped metric definition from above
+    []string{"some-label", "other-label"},
+}
+
+kubemetrics.MustRegister(alphaMetric)
+```
+
+The KEP is implementable, with on-going changes in [component-base](https://github.com/kubernetes/component-base/blob/master/metrics/).
+Another two KEPs are written,
+- one for migrating the metrics to this stability framework
+- one for enforcing the stability framework via static code analysis
+
+*References*
+
+- [kubernetes control-plane metrics stability KEP link](https://github.com/kubernetes/enhancements/blob/f701ae66b466a9c8e6789b7c5135924949617ea7/keps/sig-instrumentation/20190404-kubernetes-control-plane-metrics-stability.md)
+- [metrics stability migration KEP link](https://github.com/kubernetes/enhancements/blob/f701ae66b466a9c8e6789b7c5135924949617ea7/keps/sig-instrumentation/20190605-metrics-stability-migration.md)
+- [metrics validation and verification KEP link](https://github.com/kubernetes/enhancements/blob/f701ae66b466a9c8e6789b7c5135924949617ea7/keps/sig-instrumentation/20190605-metrics-validation-and-verification.md)
+
+## metrics watch api
+
+The KEP proposes adding watch capability to all resource metrics APIs, i.e. `metrics.k8s.io`,
+`custom.metrics.k8s.io` and `external.metrics.k8s.io`, similarly to regular Kubernetes APIs. Right
+now, external clients have to poll metrics APIs to find latest changes.
+
+*References*
+
+- [metrics watch api KEP link](https://github.com/kubernetes/enhancements/blob/f701ae66b466a9c8e6789b7c5135924949617ea7/keps/sig-instrumentation/20190425-metrics-watch-api.md)
 
 # Feature & Design
 
@@ -38,7 +117,7 @@ kubernetes.
 The proposal splits monitoring architecture into two parts: core monitoring pipeline and monitoring
 pipeline:
 - A core metrics pipeline consisting of Kubelet, a resource estimator, a slimmed-down Heapster called
-  metrics-server, and the API server serving the master metrics API. These metrics are used by core
+  `metrics-server`, and the API server serving the master metrics API. These metrics are used by core
   system components, such as scheduling logic (e.g. scheduler and horizontal pod autoscaling based
   on system metrics) and simple out-of-the-box UI components (e.g. kubectl top). This pipeline is
   not intended for integration with third-party monitoring systems.
@@ -61,7 +140,7 @@ For each pipeline, there are two types of metrics to consider: system metrics an
 **Core Monitoring Pipeline**
 
 The core metrics pipeline collects a set of core system metrics. Core monitoring pipeline consists
-of Kubelet, a resource estimator, a slimmed-down Heapster called metrics-server, and the API server
+of Kubelet, a resource estimator, a slimmed-down Heapster called `metrics-server`, and the API server
 serving the master metrics API.
 - Kubelet has in-process cAdvisor just as before, but will only provide core metrics in the future.
 - Resource estimator runs as a DaemonSet and turns raw usage values scraped from Kubelet into resource
@@ -194,6 +273,22 @@ $ curl -k https://172.17.0.4/apis/metrics.k8s.io/v1beta1/namespaces/kube-system/
     }
   ]
 }
+```
+
+It's also possible to query Kubernetes API server, provided we've registered the API endpoints as a
+service (the default behavior from metrics-server):
+
+```
+$ kubectl get apiservices
+NAME                                   SERVICE                      AVAILABLE   AGE
+...
+v1.storage.k8s.io                      Local                        True        30h
+v1beta1.metrics.k8s.io                 kube-system/metrics-server   True        29m
+v1beta1.networking.k8s.io              Local                        True        30h
+...
+
+$ curl -k https://localhost:8443/apis/metrics.k8s.io/v1beta1/namespaces/kube-system/pods/kube-dns-86f6f55dd5-bbjvt
+...
 ```
 
 Note the APIs are defined in [metrics](https://github.com/kubernetes/metrics) repository, along with
@@ -365,6 +460,10 @@ All design decisions apply to external metrics API, with a few differences:
 - access control can be performed using normal Kubernetes policies, but for external metrics, we can
   also add a new ExternalMetricsPolicy API object to control how external metrics are access controlled
 
+*References*
+
+- [external metrics API design doc](https://github.com/kubernetes/community/blob/59ad9e15d9290e34a3b02a5a88fb447dbbc7e18c/contributors/design-proposals/instrumentation/external-metrics-api.md)
+
 ## metrics server
 
 *Date: 01/14/2018*
@@ -501,9 +600,9 @@ The API is checked in, but looks like there is no futhur plan.
 
 *References*
 
-- [redesign event enhancement issue](https://github.com/kubernetes/enhancements/issues/383)
 - [event redesign design doc](https://github.com/kubernetes/community/blob/38d96e9eaa25da80b6757e6b5b9212259865245f/contributors/design-proposals/instrumentation/events-redesign.md)
 - [event compression design doc](https://github.com/kubernetes/community/blob/d09814f618cfeae6f3a19744520fc13773409c92/contributors/design-proposals/api-machinery/event_compression.md)
+- [redesign event enhancement issue](https://github.com/kubernetes/enhancements/issues/383)
 
 ## performance monitoring
 

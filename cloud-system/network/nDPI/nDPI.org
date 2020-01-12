@@ -1,8 +1,0 @@
-#+STARTUP: overview
-
-* Overview (01/07/2017)
-  nDPI is a DPI library based on OpenDPI and currently maintained by ntop. nDPI
-  is automatically downloaded when you build ntop and nProbe; i.e. ntop and nProbe
-  depends on nDPI.
-* References
-  https://github.com/ntop/nDPI

@@ -18,6 +18,7 @@
   - [CTC Loss](#ctc-loss)
   - [Focal Loss](#focal-loss)
   - [Triplet Loss](#triplet-loss)
+  - [Pointwise & Pairwise & Listwise](#pointwise--pairwise--listwise)
 - [Optimization Function](#optimization-function)
   - [Batch Gradient Descent](#batch-gradient-descent)
   - [Stochastic Gradient Descent (SGD)](#stochastic-gradient-descent-sgd)
@@ -79,6 +80,7 @@
   - [Attention Mechanism](#attention-mechanism)
   - [Backpropagation](#backpropagation)
   - [Backpropagation Through Time (BPTT)](#backpropagation-through-time-bptt)
+  - [Concatenation](#concatenation)
   - [Cross-Validation](#cross-validation)
   - [Embedding](#embedding)
   - [Fine-Tuning](#fine-tuning)
@@ -383,6 +385,18 @@ network will learn little information.
 *References*
 
 - https://omoindrot.github.io/triplet-loss
+
+## Pointwise & Pairwise & Listwise
+
+The loss functions are used in ranking algorithms.
+
+- Pointwise is where a single document is considered in an algorithm, and ranking is done using loss of each document.
+- Pairwise is where two documents are considered in an algorithm, with the goal to minimize the number of wrong orders.
+- Listwise is where list of documents are considered in an algorithm; it's more complex than pointwise and pairwise.
+
+*Reference*
+
+- https://medium.com/@nikhilbd/pointwise-vs-pairwise-vs-listwise-learning-to-rank-80a8fe8fadfd
 
 # Optimization Function
 

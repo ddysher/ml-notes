@@ -2,7 +2,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [Overview (02/13/2018, v1.2)](#overview-02132018-v12)
+- [Overview](#overview)
 - [Architecture](#architecture)
   - [Jaeger Backend](#jaeger-backend)
   - [Jaeger Client](#jaeger-client)
@@ -12,7 +12,9 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# Overview (02/13/2018, v1.2)
+# Overview
+
+*Date: 02/13/2018, v1.2*
 
 Jaeger, inspired by Dapper and OpenZipkin, is a distributed tracing system released as open source
 by Uber Technologies.
