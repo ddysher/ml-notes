@@ -2,12 +2,14 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [runtime spec](#runtime-spec)
+- [Runtime spec](#runtime-spec)
   - [Overview](#overview)
   - [Details](#details)
-- [image spec](#image-spec)
+- [Image spec](#image-spec)
   - [Overview](#overview-1)
-- [oci specs expriments](#oci-specs-expriments)
+- [Distribution spec](#distribution-spec)
+- [Artifacts spec](#artifacts-spec)
+- [OCI specs expriments](#oci-specs-expriments)
   - [Build and work with skopeo](#build-and-work-with-skopeo)
   - [Build and work with image-tools](#build-and-work-with-image-tools)
   - [Create container using runc](#create-container-using-runc)
@@ -15,7 +17,7 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# [runtime spec](https://github.com/opencontainers/runtime-spec)
+# [Runtime spec](https://github.com/opencontainers/runtime-spec)
 
 *Date: 03/18/2017, v1.0.0-rc5*
 
@@ -67,7 +69,7 @@ platform additions on top of it. General configuration contains things like host
 root path, container hooks, oci version, process information, etc. For linux specific configuration,
 there is namespace, cgroups, mount propagation options, etc.
 
-# [image spec](https://github.com/opencontainers/image-spec)
+# [Image spec](https://github.com/opencontainers/image-spec)
 
 *Date: 03/18/2017, v1.0.0-rc5*
 
@@ -92,7 +94,25 @@ level:
   similar to docker term.
 - Image configuration includes information such as application arguments, environments, etc.
 
-# oci specs expriments
+# [Distribution spec](https://github.com/opencontainers/distribution-spec/)
+
+This specification defines an API protocol to facilitate distribution of images.
+
+The goal of this specification is to standardize container image distribution based on the
+specification for the Docker Registry HTTP API V2 protocol.
+
+# [Artifacts spec](https://github.com/opencontainers/artifacts)
+
+Apart from contaienr image, applications and services typically require additional artifacts to
+deploy and manage, including helm for deployment and Open Policy Agent (OPA) for policy enforcement.
+The goal of artifacts is to extend the OCI registry specification and store other cloud native
+artifacts.
+
+The artifacts specification seeks to re-uses most of the distribution spec, i.e. utilizing the
+manifest and index definitions, new artifacts, such as the Singularity project, can be stored
+and served using the distribution-spec.
+
+# OCI specs expriments
 
 *Date: 03/18/2017, v1.0.0-rc5*
 

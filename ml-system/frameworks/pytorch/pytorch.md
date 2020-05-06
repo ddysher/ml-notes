@@ -8,6 +8,10 @@
 - [PyTorch APIs](#pytorch-apis)
   - [Python API](#python-api)
   - [C++ API](#c-api)
+- [Projects](#projects)
+  - [Captum](#captum)
+  - [Elastic](#elastic)
+  - [TorchServe](#torchserve)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -86,3 +90,157 @@ Using C++ API is useful in several cases:
 - deploy PyTorch model to devices without dependencies on python
 - add custom operations with CUDA or other libraries
 - etc
+
+# Projects
+
+## Captum
+
+[Captum](https://github.com/pytorch/captum) helps you interpret and understand predictions of PyTorch
+models by exploring features that contribute to a prediction the model makes. It also helps understand
+which neurons and layers are important for model predictions.
+
+Currently, the library uses gradient-based interpretability algorithms and attributes contributions
+to each input of the model with respect to different neurons and layers, both intermediate and final.
+
+<details><summary>sample.py</summary><p>
+
+```
+import numpy as np
+
+import torch
+import torch.nn as nn
+
+from captum.attr import (
+    GradientShap,
+    DeepLift,
+    DeepLiftShap,
+    IntegratedGradients,
+    LayerConductance,
+    NeuronConductance,
+    NoiseTunnel,
+)
+
+class ToyModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.lin1 = nn.Linear(3, 3)
+        self.relu = nn.ReLU()
+        self.lin2 = nn.Linear(3, 2)
+
+        # initialize weights and biases
+        self.lin1.weight = nn.Parameter(torch.arange(-4.0, 5.0).view(3, 3))
+        self.lin1.bias = nn.Parameter(torch.zeros(1,3))
+        self.lin2.weight = nn.Parameter(torch.arange(-3.0, 3.0).view(2, 3))
+        self.lin2.bias = nn.Parameter(torch.ones(1,2))
+
+    def forward(self, input):
+        return self.lin2(self.relu(self.lin1(input)))
+
+model = ToyModel()
+model.eval()
+
+torch.manual_seed(123)
+np.random.seed(123)
+
+input = torch.rand(2, 3)
+baseline = torch.zeros(2, 3)
+
+ig = IntegratedGradients(model)
+attributions, delta = ig.attribute(input, baseline, target=0, return_convergence_delta=True)
+print('IG Attributions:', attributions)
+print('Convergence Delta:', delta)
+```
+
+</p></details></br>
+
+Output:
+
+```
+IG Attributions: tensor([[-0.5922, -1.5497, -1.0067],
+                         [ 0.0000, -0.2219, -5.1991]])
+Convergence Delta: tensor([2.3842e-07, -4.7684e-07])
+```
+
+> Positive attribution score means that the input in that particular position positively contributed
+> to the final prediction and negative means the opposite. The magnitude of the attribution score
+> signifies the strength of the contribution. Zero attribution score means no contribution from that
+> particular feature.
+
+## Elastic
+
+- *Date: 02/27/2020, v0.1.0rc1*
+
+PyTorch Elastic (torchelastic) is a library that enables distributed training jobs to be executed in
+a fault tolerant and elastic manner; that is, your distributed job is able to start as soon as `min`
+number of workers are present and allowed to grow up to `max` number of workers without being stopped
+or restarted.
+
+To use torchelastic, users need to provide two core methods:
+- `sync`: in case of membership change (training start/resume, member joining, etc), `sync` performs
+  synchronization tasks such as state sync, model init, data loader init, etc
+- `train_step`: the unit of work in training, called from torchelastic during training loop
+
+The synchronization process is called `Rendezvous`, as mentioned above, each time there is a change
+in membership in the set of workers, torchelastic runs a rendezvous. torchelastic provides a default
+implementation based on etcd, but custom Rendezvous can be implemented as long as it satifies Rendezvous
+interface. The core of Rendezvous are:
+- barrier - all nodes will block until rendezvous is complete before resuming execution.
+- role assignment - on each rendezvous each node is assigned a unique integer valued rank between
+  [0, n) where n is the world size (total number of workers).
+- world size broadcast - on each rendezvous all nodes receive the new world_size.
+
+For more information:
+- [how torchelastic works](https://github.com/pytorch/elastic/tree/v0.1.0rc1#how-torchelastic-works)
+- [torchelastic on kubernetes](https://github.com/pytorch/elastic/tree/c0a5436539a2f0cea0b15bf551f05465e9ae3f74/kubernetes)
+- [torchelastic usage](https://github.com/pytorch/elastic/blob/v0.1.0rc1/USAGE.md)
+- [checkpoint](https://github.com/pytorch/elastic/tree/v0.1.0rc1/torchelastic/checkpoint)
+- [rendezvous](https://github.com/pytorch/elastic/tree/v0.1.0rc1/torchelastic/rendezvous)
+- [metrics](https://github.com/pytorch/elastic/tree/v0.1.0rc1/torchelastic/metrics)
+
+## TorchServe
+
+- *Date: 04/27/2020, v0.1.0*
+
+TorchServe is a new open-source model serving library & system under the PyTorch project. Features
+of TorchServe include:
+- APIs: Prediction APIs (e.g. for image prediction) and Management APIs (e.g. for registering models)
+- Secure HTTPS Deployment
+- Model Management: Full configuration of models
+- Model Archival: A `.mar` file format that packages a model, parameters and supporting into a single file
+- Model Handler: Handling inference logic, TorchServe provides built-in handles as well as custom handlers
+- Logging and Metrics
+- Prebuilt Images: Ready to use docker images
+
+The core of TorchServe is `Model Archival` and the real inference logic resides in `Model Handler`.
+TorchServe has a convention for how a handler should be written, and all default handlers conforms
+to the convention. For default handlers, see [torch_handler](https://github.com/pytorch/serve/tree/v0.1.0/ts/torch_handler);
+for an example custom handler, see [mnist example](https://github.com/pytorch/serve/tree/v0.1.0/examples/image_classifier/mnist).
+Typically, the handlers will preprocess the data, load the model, run the inference, and postprocess
+the result.
+
+Quick demo:
+
+```bash
+# Install TorchServe:
+pip install --upgrade torch torchtext torchvision sentencepiece
+pip install -f https://download.pytorch.org/whl/torch_stable.html torchserve torch-model-archiver
+
+# Prepare model boundle `mar` file:
+wget https://download.pytorch.org/models/densenet161-8d451a50.pth
+torch-model-archiver --model-name densenet161 --version 1.0 --model-file examples/image_classifier/densenet_161/model.py --serialized-file densenet161-8d451a50.pth --handler image_classifier --extra-files examples/image_classifier/index_to_name.json
+
+# Prepare model store and start serving:
+mkdir model_store
+mv densenet161.mar model_store/
+torchserve --start --model-store model_store --models densenet161=densenet161.mar
+curl -X POST http://127.0.0.1:8080/predictions/densenet161 -T examples/image_classifier/kitten.jpg
+
+# To stop:
+torchserve --stop
+```
+
+For more information:
+- [TorchServe Blog ANN](https://medium.com/pytorch/torchserve-and-torchelastic-for-kubernetes-new-pytorch-libraries-for-serving-and-training-models-2efd12e09adc)
+- [Running TorchServe](https://github.com/pytorch/serve/blob/v0.1.0/docs/server.md)
+- [Torch Model archiver for TorchServe](https://github.com/pytorch/serve/tree/v0.1.0/model-archiver)
+- [Custom Service](https://github.com/pytorch/serve/blob/v0.1.0/docs/custom_service.md)

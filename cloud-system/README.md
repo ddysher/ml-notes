@@ -7,9 +7,10 @@
   - [PaaS](#paas)
   - [IaaS](#iaas)
 - [Application](#application)
+  - [Packaging](#packaging)
   - [Specification](#specification)
 - [Microservice](#microservice)
-  - [Framework](#framework)
+  - [Runtime](#runtime)
   - [APIGateway](#apigateway)
   - [Servicemesh](#servicemesh)
   - [Serverless](#serverless)
@@ -23,15 +24,21 @@
   - [Tracing](#tracing)
   - [Specification](#specification-2)
 - [Container](#container)
-  - [Runtime](#runtime)
+  - [Runtime](#runtime-1)
   - [Image](#image)
+  - [Registry](#registry)
   - [Specification](#specification-3)
 - [Network](#network)
-  - [CNIs](#cnis)
+  - [Agents](#agents)
   - [Proxy](#proxy)
   - [Misc](#misc)
 - [Storage](#storage)
+  - [Filesystem](#filesystem)
+  - [Database](#database)
+  - [Management](#management)
 - [Security](#security)
+  - [AuthN/Z](#authnz)
+  - [Container](#container-1)
 - [System](#system)
   - [Virtualization](#virtualization)
 
@@ -46,12 +53,16 @@
 - [kubernetes](../cloud-core/kubernetes)
 - [openshift](./platforms/openshift)
 - [rancher](./platforms/rancher)
+- [kubesphere](./platforms/kubesphere)
+- [rainbond](./platforms/simple.md#rainbond)
+
+For more Kubernetes centric projects, see [kubernetes projects](../cloud-core/kubernetes/projects).
 
 ## PaaS
 
 - [mesos](./platforms/mesos)
-- [micro](./platforms/micro)
 - [cloudfoundry](./platforms/cloudfoundry)
+- [choerodon](./platforms/simple.md#choerodon)
 
 ## IaaS
 
@@ -59,16 +70,24 @@
 
 # Application
 
+## Packaging
+
+- [buildpacks](./application/buildpacks/buildpacks.md)
+- [duffle (cnab implementation)](https://duffle.sh/)
+
 ## Specification
 
 - [servicebroker](./application/servicebroker)
 - [oam](https://github.com/oam-dev/)
+- [cnab](./application/cnab)
 
 # Microservice
 
-## Framework
+## Runtime
 
-- [spring](./microservice/framework/spring)
+- [spring](./microservice/runtime/spring)
+- [dapr](./microservice/runtime/dapr)
+- [micro](./microservice/runtime/micro)
 
 ## APIGateway
 
@@ -101,8 +120,9 @@ For comparisions of the projects, refer to [README](./microservice/serverless/RE
 
 ## Specification
 
-- [smi](./servicemesh/smi)
-- [cloudevents](./serverless/cloudevents)
+- [smi](./microservice/servicemesh/smi)
+- [cloudevents](./microservice/serverless/cloudevents)
+- [serverless workflow](https://github.com/cncf/wg-serverless/blob/master/workflow/spec)
 
 # Middleware
 
@@ -152,9 +172,12 @@ For comparisions of the projects, refer to [README](./microservice/serverless/RE
 
 - [jib](./container/jib.md)
 - [s2i](./container/s2i.md)
-- [buildpacks](./container/buildpacks/buildpacks.md)
+
+## Registry
+
 - [dragonfly](./container/dragonfly.md)
 - [kraken](./container/kraken.md)
+- [oras](./container/oras.md)
 
 ## Specification
 
@@ -165,7 +188,7 @@ For comparisions of the projects, refer to [README](./microservice/serverless/RE
 
 # Network
 
-## CNIs
+## Agents
 
 - [calico](./network/calico)
 - [canal](./network/canal)
@@ -183,20 +206,42 @@ For comparisions of the projects, refer to [README](./microservice/serverless/RE
 
 # Storage
 
+## Filesystem
+
 - [glusterfs](./storage/glusterfs)
-- [graphite](./storage/graphite)
-- [heketi](./storage/heketi)
-- [rook](./storage/rook)
 - [torus](./storage/torus)
+
+## Database
+
+- [graphite](./storage/graphite)
+
+## Management
+
+- [rook](./storage/rook)
+- [heketi](./storage/heketi)
+- [noobaa](./storage/simple.md#noobaa)
 
 # Security
 
+## AuthN/Z
+
 - [dex](./security/dex)
+
+## Container
+
 - [trireme](./security/trireme)
+- [anchore](./security/simple.md#anchore)
+- [clair](./security/simple.md#clair)
 
 # System
 
 ## Virtualization
 
-- [hyper](./system/hyper)
-- [qemu-kvm](./system/qemu-kvm)
+- [kvm](./system/virtualization/kvm)
+- [qemu](./system/virtualization/qemu)
+- [hyper](./system/virtualization/hyper)
+- [firecracker](./system/virtualization/firecracker)
+- [rust-vmm](./system/virtualization/rust-vmm)
+- [crosvm](https://chromium.googlesource.com/chromiumos/platform/crosvm/)
+- [cloud-hypervisor](https://github.com/cloud-hypervisor/cloud-hypervisor)
+- [gVisor](https://github.com/google/gvisor)

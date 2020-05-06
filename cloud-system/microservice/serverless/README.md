@@ -14,6 +14,7 @@
   - [monitoring and logging](#monitoring-and-logging)
   - [performance and scalability](#performance-and-scalability)
   - [other features](#other-features)
+- [References](#references)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -111,3 +112,7 @@ performance and scalability varies depending on architecture.
 - concurrent execution: multiple workers in a container to leverage multiple cpus
 - data binding: provides easy access to external data services like database, message queue
 - partition: partition streams or data to multiple replicas of the same function
+
+# References
+
+- [CNCF WG Serverless Landscape](https://docs.google.com/spreadsheets/d/10rSQ8rMhYDgf_ib3n6kfzwEuoE88qr0amUPRxKbwVCk/edit)

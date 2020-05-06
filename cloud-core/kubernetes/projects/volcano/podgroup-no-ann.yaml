@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: qj-1
+spec:
+  backoffLimit: 6
+  completions: 6
+  parallelism: 1
+  template:
+    spec:
+      containers:
+      - image: busybox
+        imagePullPolicy: IfNotPresent
+        name: busybox
+        resources:
+          requests:
+            cpu: "100m"
+      restartPolicy: Never
+      schedulerName: kube-batch

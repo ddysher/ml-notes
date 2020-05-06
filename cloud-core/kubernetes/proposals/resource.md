@@ -3,12 +3,13 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Feature & Design](#feature--design)
-  - [cpu manager](#cpu-manager)
-  - [device plugin, or device manager](#device-plugin-or-device-manager)
-  - [hugepages support](#hugepages-support)
-  - [resource quota scoping](#resource-quota-scoping)
-  - [resource class](#resource-class)
-  - [node performance isolation](#node-performance-isolation)
+  - [(large) device plugin, or device manager](#large-device-plugin-or-device-manager)
+  - [(small) resource quota scoping](#small-resource-quota-scoping)
+  - [(small) admission control - limitrange, resourcequota](#small-admission-control---limitrange-resourcequota)
+  - [(moved) cpu manager](#moved-cpu-manager)
+  - [(moved) hugepages support](#moved-hugepages-support)
+  - [(closed) resource class](#closed-resource-class)
+  - [(discussion) node performance isolation](#discussion-node-performance-isolation)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -16,44 +17,10 @@
 
 - [Resource Management Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/resource-management)
 - [Resource Management Working Group](https://github.com/kubernetes/community/tree/master/wg-resource-management)
-- [SIG-Node Community (Partially)](https://github.com/kubernetes/community/tree/master/sig-node)
 
 # Feature & Design
 
-## cpu manager
-
-- *Date: 09/28/2017, v1.8, alpha*
-- *Date: 06/14/2018, v1.10, beta*
-
-There is no CPU affinity in kubernetes, thus if a Pod requesting 1 or more CPUs, it will context
-switch to different CPUs. This results in bad cache hits, introducing latencies in kernel process
-scheduler, etc.
-
-The goal of the proposal is:
-> if you are a Guaranteed pod with 1 or more cores of cpu (integer), the system will try to make
-> sure that the pod gets its cpu quota primarily from reserved core(s), resulting in fewer context
-> switches and higher cache affinity.
-
-The affinity is per container, not per pod. Implementation-wise, a new CPU manager component is used
-to manage cpuset and reconcile the settings. It maintains CPU topology and allocates CPUs per request
-from kubelet. It passes the result to kubelet which in turn passes to container runtime via CRI. The
-CPU topology is read from cadvisor, which find the information from `/proc/cpuinfo`. Currently, there
-are two policies:
-- none: works like existing policy
-- static: when exclusive CPUs are allocated for a container, those CPUs are removed from the allowed
-  CPUs of every other container running on the node. Once allocated at pod admission time, an
-  exclusive CPU remains assigned to a single container for the lifetime of the pod (until it becomes
-  terminal.)
-
-CPU Manager feature has reached beta in v1.10. It is enabled by default and the default option is
-`none`, which is the existing behavior.
-
-*References*
-
-- [cpu manager design doc](https://github.com/kubernetes/community/blob/c4d900e55bf67ba87eb7e4c368a8486ff4ca3761/contributors/design-proposals/node/cpu-manager.md)
-- https://github.com/kubernetes/kubernetes/pull/51929
-
-## device plugin, or device manager
+## (large) device plugin, or device manager
 
 - *Date: 09/16/2017, v1.8, alpha*
 - *Date: 06/23/2018, v1.10, beta*
@@ -108,206 +75,9 @@ see plugin watcher proposal in `node.md`.
 - https://docs.google.com/document/d/1LHeTPx_fWA1PdZkHuALPzYxR0AYXUiiXdo3S0g2VSlo/edit
 - https://github.com/kubernetes/community/pull/695
 
-## hugepages support
+## (small) resource quota scoping
 
-- *Date: 09/28/2017, v1.8, alpha*
-- *Date: 06/23/2018, v1.10, beta*
-
-The proposal enables kubernetes to support hugepages, and has a relatively narrow scope to only
-support huge page allocated at boot time or by manual dynamic allocation. Features like kubelet
-dynamic hugepage allocation and NUMA aware allocation are out of scope. To the end, node spec
-becomes something similar to:
-
-```yaml
-# No huge page.
-apiVersion: v1
-kind: Node
-metadata:
-  name: node1
-...
-status:
-  allocatable:
-    cpu: "8"
-    ephemeral-storage: "216272059649"
-    hugepages-1Gi: "0"
-    hugepages-2Mi: "0"
-    memory: 16174764Ki
-    pods: "110"
-  capacity:
-    cpu: "8"
-    ephemeral-storage: 234670204Ki
-    hugepages-1Gi: "0"
-    hugepages-2Mi: "0"
-    memory: 16277164Ki
-    pods: "110"
----
-# 1024 x 2Mi huge page.
-apiVersion: v1
-kind: Node
-metadata:
-  name: node1
-...
-status:
-  allocatable:
-    cpu: "8"
-    ephemeral-storage: "216272059649"
-    hugepages-1Gi: "0"
-    hugepages-2Mi: 2Gi
-    memory: 14077612Ki
-    pods: "110"
-  capacity:
-    cpu: "8"
-    ephemeral-storage: 234670204Ki
-    hugepages-1Gi: "0"
-    hugepages-2Mi: 2Gi
-    memory: 16277164Ki
-    pods: "110"
-...
-```
-
-Note in the above output, node allocatable is different depending on how many huge pages are allocated.
-Pre-allocated huge pages reduce the amount of allocatable memory on a node. The node will treat
-pre-allocated huge pages similar to other system reservations and reduce the amount of memory it
-reports.
-
-A pod must make a request to consume pre-allocated huge pages using the resource `hugepages-<hugepagesize>`
-whose quantity is a positive amount of memory in bytes, e.g. for 2Mi hugepage, it's valid to claim
-4Mi but invalid to claim 3Mi hugepages.
-
-Also, hugepage request and limit must match - no hugepages overcommit is allowed. Initially, a pod
-may not consume multiple huge page sizes in a single pod spec; but the restriction can be relaxed
-when use cases are presented in the community. Similar to other machine data, hugepage info is
-retrieved via cadvisor, which in turn read from `/sys/kernel/mm/hugepages`. Below is a simple
-script to pre-allocate huge page to test it out, source can be found [here](https://github.com/derekwaynecarr/hugepages):
-
-```shell
-set -o errexit
-#set -o pipefail
-set -u
-set -x
-
-# The script must be run as a root.
-# Input:
-#
-# Environment Variables
-# NR_HUGEPAGES - Number of 2MB huge pages to allocate on the machine.  Defaults to 0
-#
-
-NR_HUGEPAGES=${NR_HUGEPAGES:-"0"}
-
-allocate_huge_pages() {
-    echo "$NR_HUGEPAGES" > /proc/sys/vm/nr_hugepages
-}
-
-verify_huge_pages() {
-    nr_huge_pages=$(cat /proc/sys/vm/nr_hugepages)
-    if [ "$NR_HUGEPAGES" -eq "$nr_huge_pages" ]
-    then
-        echo "huge pages allocated."
-    else
-        echo "huge pages not allocated."
-        exit 1
-    fi
-}
-
-exit_if_allocation_not_needed() {
-    nr_huge_pages=$(cat /proc/sys/vm/nr_hugepages)
-    if [ "$NR_HUGEPAGES" -eq "$nr_huge_pages" ]
-    then
-      echo "huge pages already allocated.  skipping allocation"
-      exit 0
-    fi
-}
-
-restart_kubelet() {
-    echo "Sending SIGTERM to kubelet"
-    if pidof kubelet &> /dev/null; then
-        pkill -SIGTERM kubelet
-    fi
-}
-
-post_allocation_sequence() {
-    # Restart the kubelet for it to pick up the huge pages.
-    restart_kubelet
-}
-
-main() {
-    # Exit if installation is not required (for idempotency)
-    exit_if_allocation_not_needed
-    # Allocate the huge pages
-    allocate_huge_pages
-    # Verify the huge pages are allocated.
-    verify_huge_pages
-    # Perform post allocation steps
-    post_allocation_sequence
-}
-
-main "$@"
-```
-
-Resource enforcement is done using `hugetlb` cgroup, i.e. control how many hugetlb pages pod can
-allocate. Check `/proc/cgroups` to see if `hugetlb` cgroup is available, if not, then it's possible
-it is not enabled via kernel config `CONFIG_CGROUP_HUGETLB`, see `/proc/config.gz`.
-
-There are two approaches to use hugepage, one is `hugetlbfs`, the other is `shmget`. Using `hugetlbfs`,
-pod needs to use volume/volumemounts with medium=hugepages.
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: example
-spec:
-  containers:
-...
-    volumeMounts:
-    - mountPath: /hugepages
-      name: hugepage
-    resources:
-      requests:
-        hugepages-2Mi: 1Gi
-      limits:
-        hugepages-2Mi: 1Gi
-  volumes:
-  - name: hugepage
-    emptyDir:
-      medium: HugePages
-```
-
-*Update on 09/24/2018*
-
-Another [downstream implementation from intel](https://github.com/intelsdi-x/kubernetes/pull/55/files),
-which uses new volumes API:
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: test-hugepages-volume-pod
-spec:
-  containers:
-  - image:  gcr.io/google_containers/test-webserver
-    name: test-container
-    volumeMounts:
-    - mountPath: /hugepages
-      name: test-volume
-  volumes:
-  - name: test-volume
-    hugePages:
-      pageSize: "2M"
-      size: "200M"
-      minSize: "100M"
-```
-
-*References*
-
-- [hugepages design doc](https://github.com/kubernetes/community/blob/c4d900e55bf67ba87eb7e4c368a8486ff4ca3761/contributors/design-proposals/resource-management/hugepages.md)
-- https://lwn.net/Articles/499255/
-- https://www.kernel.org/doc/Documentation/cgroup-v1/hugetlb.txt
-
-## resource quota scoping
-
-*Date: 06/23/2018, v1.10, stable*
+- *Date: 06/23/2018, v1.10, stable*
 
 The proposal first identifies a couple use cases:
 - Improve resource quota to also include request & limit, to give cluster admin more control over
@@ -330,9 +100,34 @@ hard for cluster admin to reason about quota usage since he/she must know semant
 
 - [resource quota scoping design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/resource-management/resource-quota-scoping.md)
 
-## resource class
+## (small) admission control - limitrange, resourcequota
 
-*Date: 09/29/2017, v1.8, design*
+- *Date: 05/25/2015, v1.0*
+
+Limitrange and resourcquota are both plugins for admission control. There can be more plugins. If
+any one of the plugins doesn't satisfy, the request is rejected without acutally creating any thing.
+- Limitrange defines min/max values (cpu, memory, etc) that a ResourceType (pod, container, etc)
+  must satisfy. If a request's resource requirement doesn't fall into the range, the request will
+  be rejected.
+- ResourceQuota defines the total amount of resource a namespace can consume. If a request's resource
+  requirement results in exceeding the limit, the request will be rejected.
+
+*References*
+
+- [admission control limit range design doc](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/resource-management/admission_control_limit_range.md)
+- [admission control resource quota design doc](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/resource-management/admission_control_resource_quota.md)
+
+## (moved) cpu manager
+
+Moved to SIG-node KEP.
+
+## (moved) hugepages support
+
+Moved to SIG-node KEP.
+
+## (closed) resource class
+
+- *Date: 09/29/2017, v1.8, design*
 
 **Proposal**
 
@@ -481,9 +276,9 @@ ProvisionConfig {
 - https://github.com/kubernetes/community/pull/782
 - https://docs.google.com/document/d/1666PPUs4Lz56TqKygcy6mXkNazde-vwA7q4e5H92sUc/edit
 
-## node performance isolation
+## (discussion) node performance isolation
 
-*Date: 09/24/2018, design*
+- *Date: 09/24/2018, design*
 
 Document Summary:
 > This document outlines how the Kubernetes node enables performance isolation primitives across

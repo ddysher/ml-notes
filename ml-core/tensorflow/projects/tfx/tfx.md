@@ -3,16 +3,17 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Overview](#overview)
-- [Pipeline](#pipeline)
+- [TFX Pipeline](#tfx-pipeline)
   - [Components](#components)
   - [Orchestrator](#orchestrator)
-  - [ML Metadata](#ml-metadata)
-- [Libraries & Systems](#libraries--systems)
+- [TFX Libraries](#tfx-libraries)
   - [TensorFlow Data Validation (TFDV)](#tensorflow-data-validation-tfdv)
   - [TensorFlow Transform (TFT)](#tensorflow-transform-tft)
+  - [TensorFlow (TF)](#tensorflow-tf)
   - [TensorFlow Model Analysis (TFMA)](#tensorflow-model-analysis-tfma)
   - [TensorFlow Metadata (TFMD)](#tensorflow-metadata-tfmd)
   - [TensorFlow Serving (TFS)](#tensorflow-serving-tfs)
+  - [ML Metadata (MLMD)](#ml-metadata-mlmd)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -22,12 +23,23 @@ TFX is a Google-production-scale machine learning platform based on TensorFlow. 
 configuration framework and shared libraries to integrate common components needed to define,
 launch, and monitor your machine learning system.
 
+> When you’re ready to go beyond training a single model, or ready to put your amazing model to
+> work and move it to production, TFX is there to help you build a complete ML pipeline.
+
+There are two layers in TFX:
+- The [tfx library](https://github.com/tensorflow/tfx): This is the library that calls into lower
+  level libraries like tfdv, tft, etc, providing the actual user-facing APIs in TFX (called
+  `Component`). It also uses orchestrator to connect different components, uses external SQL
+  database to save metadata.
+- Many low-level libraries like tfdv, tft, tfma, mlmd, etc, that provides the actual component
+  implementations. These libraries are not meant to be used by users directly.
+
 *References*
 
+- https://www.tensorflow.org/tfx
 - https://github.com/tensorflow/tfx
-- https://www.tensorflow.org/tfx/guide
 
-# Pipeline
+# TFX Pipeline
 
 ## Components
 
@@ -45,49 +57,51 @@ includes the following components:
 
 Components are bridges between libraries and users: components are implmented using libraries and
 users use components to construct a pipeline. Because of this, users usually do not directly use
-following libraries like tfdv or ml metadata: all are encapsulated into components.
+following libraries like `tfdv` or `ml-metadata`: all are encapsulated into components.
 
-For an example pipeline, refer to [the sample application](https://github.com/tensorflow/tfx/blob/0.13.0/tfx/examples/chicago_taxi_pipeline/taxi_pipeline_simple.py).
+For example, in the chicago taxi example, the pipeline is created via a series calls from following
+packages:
+
+```python
+from tfx.components import CsvExampleGen
+from tfx.components import Evaluator
+from tfx.components import ExampleValidator
+from tfx.components import ModelValidator
+from tfx.components import Pusher
+from tfx.components import SchemaGen
+from tfx.components import StatisticsGen
+from tfx.components import Trainer
+from tfx.components import Transform
+```
+
+while internally, the `tfx.components.SchemaGen` package leverages `tfdv` library to create schema.
+For full example, refer to [the sample application](https://github.com/tensorflow/tfx/blob/0.13.0/tfx/examples/chicago_taxi_pipeline/taxi_pipeline_simple.py).
 
 *References*
 
-- https://github.com/tensorflow/tfx/tree/master/tfx/components
 - https://www.tensorflow.org/tfx/guide/examplegen
+- https://github.com/tensorflow/tfx/tree/master/tfx/components
 
 ## Orchestrator
 
 Orchestrator is a system that enables composition and execution of above mentioned components.
 Orchestrators use well-defined interface from components (refer to `BaseComponent` class), add
 them into orchestrator specific DAG, then run the pipeline. Current orchestrator includes:
+- apache beam (default)
 - apache airflow
 - kubelflow pipelines
 - google cloud
 
+Internally, tfx imports orchestrator SDK, e.g. `import kfp` for kubeflow pipelines, and use its
+SDK to build executable pipelines defined from user code, e.g. argo Yaml. Therefore, similar to
+tfx components, user only use tfx orchestration API, and doesn't directly use orchestrator libraries.
+
 *References*
 
-- https://github.com/tensorflow/tfx/tree/master/tfx/orchestration
 - https://www.tensorflow.org/tfx/guide/orchestra
+- https://github.com/tensorflow/tfx/tree/master/tfx/orchestration
 
-## ML Metadata
-
-ML Metadata (MLMD) is a **library** for recording and retrieving metadata associated with ML
-developer and data scientist workflows. MLMD is an integral part of TensorFlow Extended (TFX), but
-is designed so that it can be used independently. As part of a broader platform like TFX, most users
-only interact with MLMD when examining the results of pipeline components, for example in notebooks
-or in TensorBoard.
-
-MLMD keeps track of artifacts pipeline components depend upon (e.g. training data) and produce (e.g.
-vocabularies and models). ML Metadata is available as a standalone library and has also been
-integrated with TFX components for your convenience. MLMD allows you to discover the lineage of an
-artifact (for example what data a model was trained on), find all artifacts created from an artifact
-(for example all models trained on a specific dataset), and enables many other use cases.
-
-*References*
-
-- https://github.com/google/ml-metadata
-- https://www.tensorflow.org/tfx/guide/mlmd
-
-# Libraries & Systems
+# TFX Libraries
 
 ## TensorFlow Data Validation (TFDV)
 
@@ -118,8 +132,8 @@ anomalies = tfdv.validate_statistics(statistics=other_stats, schema=schema)
 
 *References*
 
-- https://github.com/tensorflow/data-validation
 - https://www.tensorflow.org/tfx/data_validation/get_started
+- https://github.com/tensorflow/data-validation
 
 ## TensorFlow Transform (TFT)
 
@@ -167,8 +181,12 @@ def preprocessing_fn(inputs):
 
 *References*
 
-- https://github.com/tensorflow/transform
 - https://www.tensorflow.org/tfx/transform/get_started
+- https://github.com/tensorflow/transform
+
+## TensorFlow (TF)
+
+The TensorFlow core, used for training models with TFX.
 
 ## TensorFlow Model Analysis (TFMA)
 
@@ -185,8 +203,8 @@ and user-defined slices.
 
 *References*
 
-- https://github.com/tensorflow/model-analysis
 - https://www.tensorflow.org/tfx/model_analysis/get_started
+- https://github.com/tensorflow/model-analysis
 
 ## TensorFlow Metadata (TFMD)
 
@@ -211,5 +229,24 @@ designed for production environments.
 
 *References*
 
-- https://github.com/tensorflow/serving
 - https://www.tensorflow.org/tfx/guide/serving
+- https://github.com/tensorflow/serving
+
+## ML Metadata (MLMD)
+
+ML Metadata (MLMD) is a **library** for recording and retrieving metadata associated with ML
+developer and data scientist workflows. MLMD is an integral part of TensorFlow Extended (TFX), but
+is designed so that it can be used independently. As part of a broader platform like TFX, most users
+only interact with MLMD when examining the results of pipeline components, for example in notebooks
+or in TensorBoard.
+
+MLMD keeps track of artifacts pipeline components depend upon (e.g. training data) and produce (e.g.
+vocabularies and models). ML Metadata is available as a standalone library and has also been
+integrated with TFX components for your convenience. MLMD allows you to discover the lineage of an
+artifact (for example what data a model was trained on), find all artifacts created from an artifact
+(for example all models trained on a specific dataset), and enables many other use cases.
+
+*References*
+
+- https://www.tensorflow.org/tfx/guide/mlmd
+- https://github.com/google/ml-metadata

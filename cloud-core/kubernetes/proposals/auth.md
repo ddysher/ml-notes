@@ -3,24 +3,27 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [KEPs](#keps)
-  - [bounding self labeling kubelets](#bounding-self-labeling-kubelets)
+  - [20170814 - bounding self labeling kubelets](#20170814---bounding-self-labeling-kubelets)
+  - [20190711 - external credential providers](#20190711---external-credential-providers)
 - [Feature & Design](#feature--design)
-  - [node authorizer](#node-authorizer)
-  - [limit node object self control](#limit-node-object-self-control)
-  - [what is service account](#what-is-service-account)
-  - [security context and pod security context](#security-context-and-pod-security-context)
-  - [pod security policy](#pod-security-policy)
-  - [encryption for secrets](#encryption-for-secrets)
-  - [tls certificates in kubernetes](#tls-certificates-in-kubernetes)
-  - [kubelet tls bootstrapping](#kubelet-tls-bootstrapping)
-  - [aggregated cluster role](#aggregated-cluster-role)
-  - [image provenance](#image-provenance)
-- [Workflow](#workflow)
+  - [(large) node authorizer, aka, node restriction](#large-node-authorizer-aka-node-restriction)
+  - [(large) tls certificates in kubernetes](#large-tls-certificates-in-kubernetes)
+  - [(large) kubelet tls bootstrapping](#large-kubelet-tls-bootstrapping)
+  - [(large) security context and pod security context](#large-security-context-and-pod-security-context)
+  - [(medium) encryption](#medium-encryption)
+  - [(medium) entryption - kms plugin api](#medium-entryption---kms-plugin-api)
+  - [(medium) pod security policy](#medium-pod-security-policy)
+  - [(medium) aggregated cluster role](#medium-aggregated-cluster-role)
+  - [(medium) image provenance](#medium-image-provenance)
+  - [(small) service account](#small-service-account)
+  - [(small) kubelet certificate rotation](#small-kubelet-certificate-rotation)
+  - [(moved) limit node object self control](#moved-limit-node-object-self-control)
+- [Implementation](#implementation)
   - [how authn/z works](#how-authnz-works)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-> A collection of proposals, designs, features in Kubernetes APIs.
+> A collection of proposals, designs, features in Kubernetes Auth.
 
 - [SIG-Auth KEPs](https://github.com/kubernetes/enhancements/blob/master/keps/sig-auth)
 - [SIG-Auth Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/auth)
@@ -28,7 +31,9 @@
 
 # KEPs
 
-## bounding self labeling kubelets
+## 20170814 - bounding self labeling kubelets
+
+- *Date: 04/04/2020, v1.18*
 
 The KEP aims at removing the capability of Kubelet to add arbitrary labels to its Node object. Today,
 many features rely on node label, thus a compromising Kubelet with such capability has a large attack
@@ -64,15 +69,124 @@ will prevent Kubelets from adding/removing/modifying labels with the prefix.
 Apart from the above mentioned labels, users can use arbitrary labels as before, e.g. labels outside
 of `k8s.io` and `kbuernetes.io` prefix.
 
+[Design considerations](https://github.com/kubernetes/enhancements/blob/1bad2ecb356323429a6ac050f106af4e1e803297/keps/sig-auth/0000-20170814-bounding-self-labeling-kubelets.md#alternatives-considered):
+- A fixed set of labels and label prefixes is simpler to reason about, and makes every cluster behave consistently
+  - for this reason, the KEP rejected flag & file & API based configuration
+
 *References*
 
 - [bounding-self-labeling-kubelets KEP link](https://github.com/kubernetes/enhancements/blob/6861b7279948db44b58b8056450bc45102ea60bb/keps/sig-auth/0000-20170814-bounding-self-labeling-kubelets.md)
+- https://github.com/kubernetes/enhancements/issues/279
+
+## 20190711 - external credential providers
+
+- *Date: 03/26/2018, v1.10, alpha*
+- *Date: 06/27/2018, v1.11, beta*
+
+In this proposal, credential provider means external agents that provide credentials to client. This
+is not to be confused with authn webhook, which authenticates clients credentials rather than provides
+credentials.
+
+The motivation is detailed in the proposal:
+
+> Client authentication credentials for Kubernetes clients are usually specified as fields in
+> kubeconfig files. These credentials are static and must be provisioned in advance.
+>
+> This creates 3 problems:
+> - Credential rotation requires client process restart and extra tooling.
+> - Credentials must exist in a plaintext, file on disk.
+> - Credentials must be long-lived.
+>
+> Many users already use key management/protection systems, such as Key Management Systems (KMS),
+> Trusted Platform Modules (TPM) or Hardware Security Modules (HSM). Others might use authentication
+> providers based on short-lived tokens.
+>
+> Standard Kubernetes client authentication libraries should support these systems to help with key
+> rotation and protect against key exfiltration.
+
+The proposal designs a new kubectl `exec` plugin which, once called via kubectl, will call external
+providers for credentials. There are mainly two modes of authentication: `bearer tokens` and `mTLS`.
+Provider response is cached and reused in future requests.
+
+For example, following is a legitimate kubeconfig:
+
+<details><summary>kubeconfig</summary><p>
+
+```yaml
+apiVersion: v1
+kind: Config
+users:
+- name: my-user
+  user:
+    exec:
+      # API version to use when decoding the ExecCredentials resource. Required.
+      apiVersion: "client.authentication.k8s.io/<version>"
+
+      # Command to execute. Required.
+      command: "example-client-go-exec-plugin"
+
+      # Arguments to pass when executing the plugin. Optional.
+      args:
+      - "arg1"
+      - "arg2"
+
+      # Environment variables to set when executing the plugin. Optional.
+      env:
+      - name: "FOO"
+        value: "bar"
+clusters:
+- name: my-cluster
+  cluster:
+    server: "https://1.2.3.4:8080"
+    certificate-authority: "/etc/kubernetes/ca.pem"
+contexts:
+- name: my-cluster
+  context:
+    cluster: my-cluster
+    user: my-user
+current-context: my-cluster
+```
+
+</p></details></br>
+
+The `ExecCredential` API is defined in [client-go](https://github.com/kubernetes/client-go/tree/master/pkg/apis/clientauthentication).
+
+Provider input format (spec can be empty):
+```
+{
+  "apiVersion": "client.authentication.k8s.io/<version>",
+  "kind": "ExecCredential"
+}
+```
+
+Provider output format:
+```
+{
+  "apiVersion": "client.authentication.k8s.io/<version>",
+  "kind": "ExecCredential",
+  "status": {
+    "expirationTimestamp": "$EXPIRATION",
+    "token": "$BEARER_TOKEN",
+    "clientKeyData": "$CLIENT_PRIVATE_KEY",
+    "clientCertificateData": "$CLIENT_CERTIFICATE",
+  }
+}
+```
+
+The proposal chooses exec-based mechanism in favor of network-based one, due to:
+- if credential provider is remote, design for client authentication is required (aka "chicken-and-egg problem")
+- credential provider must constantly run, consuming resources; clients refresh their credentials infrequently
+
+*References*
+
+- [external credential providers KEP link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-auth/20190711-external-credential-providers.md])
+- https://github.com/kubernetes/enhancements/issues/541
 
 # Feature & Design
 
-## node authorizer
+## (large) node authorizer, aka, node restriction
 
-*Date: 03/10/2018, v1.9, stable*
+- *Date: 03/10/2018, v1.9, stable*
 
 As of 1.6, kubelets have read/write access to all Node and Pod objects, and read access to all Secret,
 ConfigMap, PersistentVolumeClaim, and PersistentVolume objects. This means that compromising a node
@@ -103,34 +217,68 @@ and user name format match the identity created for each kubelet as part of kube
 
 - [kubelet-authorizer design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/node/kubelet-authorizer.md)
 
-## limit node object self control
+## (large) tls certificates in kubernetes
 
-- *Date: 03/10/2018, v1.9, proposal*
-- *Date: 06/23/2019, v1.15, moved to KEP*
+- *Date: 03/10/2018, v1.9*
 
-The proposal is related to node authorizer. Node authorizer allows a node to have total authority
-over its own Node object; however, we want to limit its access of its own object to some degree.
+Every Kubernetes cluster has a cluster root Certificate Authority (CA). The CA is generally used by
+cluster components to validate the API server's certificate, by the API server to validate kubelet
+client certificates, etc. To support this, the CA certificate bundle is distributed to every node in
+the cluster and is distributed as a secret attached to default service accounts.
 
-The proposal is moved to KEP:bounding self labeling kubelets.
+TLS certificate is a new API in kubernetes, where user workloads can also use this CA to establish
+trust in kubernetes cluster. Your application can request a certificate signing using the `certificates.k8s.io`
+API using a protocol that is similar to the ACME draft. Using the API involves following steps:
+- Create key and CSR: create a private key and csr (server.key, server.csr)
+- Send the CSR to kubernetes via `certificates.k8s.io/v1beta1.CertificateSigningRequest`
+- Cluster admin review the CSR and approve it (a certificate controller is listening the request)
+- User can now download the certificate from CertificateSigningRequest.Status
+
+Note since controller manager is responsible to facilitate signing the certificate, it requires
+certificate authority's keypair (passed via flag). Also note that this API is introduced for
+requesting certificates from a cluster-level Certificate Authority (CA), i.e. it's not a generic
+certificate signing service.
+
+The main use case for certificates API is kubelet tls bootstrapping, see below.
 
 *References*
 
-- https://github.com/kubernetes/community/pull/911
+- https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/
+- https://github.com/kubernetes/website/blob/snapshot-initial-v1.9/docs/tasks/tls/managing-tls-in-a-cluster.md
 
-## what is service account
+## (large) kubelet tls bootstrapping
 
-*Date: 05/02/2016, v1.1, stable*
+- *Date: 03/10/2018, v1.9, beta*
+- *Date: 09/27/2018, v1.12, stable*
 
-When you (a human) access the cluster (e.g. using kubectl), you are authenticated by the apiserver
-as a particular User Account (currently this is usually admin, unless your cluster administrator
-has customized your cluster). Processes in containers inside pods can also contact the apiserver.
-When they do, they are authenticated as a particular Service Account (e.g. default). Service account
-only does authentication, upon creation, a username is created which can be used for ABAC
-authorization plugin. Using the plugin, admin can restrict cluster access per service account.
+In kubernetes, node communication with master is secured; this requires kubelet to have tls certificates
+configured properly. However, this turns out to be quite painful for cluster admins, and the same
+process must be repeated not just during cluster provisioning, but also adding new node to existing
+cluster. The kubelet tls bootstrapping feature simplifies the process using a few constructs:
+- apiserver certificate API: Kubernetes api server provides a cert API to CRUD, approve and deny csr.
+- bootstrap token: A static token provided to API server (via token file), to allow kubelet to connect.
+  An unauthenticated kubelet will connect to API server using this bootstrap token, which has a very
+  minimal set of access scope. Kubelet uses the this bootstrap token (in another sense, bootstrap
+  user) to send CSR.
+- controller: kube-controller-manager is responsible for signing all CSRs and thus plays a critical
+  role in the process.
+- RBAC: this is to limit access scope of bootstrap user; there will be a cluster role `node-bootstrapper`.
 
-## security context and pod security context
+TLS bootstrapping is mainly used for Kubelet to retrieve *client* certificate, it's also possible to
+use the process to retrive *serving* certificate.
 
-*Date: 05/10/2017, v1.7, stable*
+For detailed usage, see:
+- https://kubernetes.io/docs/admin/kubelet-tls-bootstrapping/
+- https://medium.com/@toddrosner/kubernetes-tls-bootstrapping-cf203776abc7
+
+*References*
+
+- [kubelet-tls-bootstrap design doc](https://github.com/kubernetes/community/blob/930ce65595a3f7ce1c49acfac711fee3a25f5670/contributors/design-proposals/cluster-lifecycle/kubelet-tls-bootstrap.md)
+- https://github.com/kubernetes/features/issues/43
+
+## (large) security context and pod security context
+
+- *Date: 05/10/2017, v1.7, stable*
 
 A security context defines the operating system security settings (uid, gid, capabilities, SELinux
 role, etc..) applied to a container. There are two levels of security context: pod level security
@@ -146,31 +294,35 @@ There is also a `SecurityContextProvider` defined which help kubelet modify secu
 - [selinux design doc](https://github.com/kubernetes/community/blob/930ce65595a3f7ce1c49acfac711fee3a25f5670/contributors/design-proposals/node/selinux.md)
 - [volume design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/storage/volumes.md)
 
-## pod security policy
+## (medium) encryption
 
-*Date: 03/10/2018, v1.10, beta*
+- *Date: 07/28/2017, v1.7*
 
-A Pod Security Policy is a cluster-level resource that controls security sensitive aspects of the
-pod specification (e.g. HostIPC, SecurityContext, etc). The PodSecurityPolicy objects define a set
-of conditions that a pod must run with in order to be accepted into the system, as well as defaults
-for the related fields. As of kuberentes 1.10 planning, Pod Security Policy moves to its own API
-group (policy group) and is in beta phase. PSP is implemented as an in-tree admission plugin.
+This feature allows Kubernetes resources to be encrypted in the etcd.
 
-PodSecurityPolicy, once created, act as `deny all`, just like NetworkPolicy. That is, creating Pod
-will be rejected unless either the User (User Role) or Pod (ServiceAccount Role) has access to at
-least one PodSecurityPolicy. The preferred method for authorizing policies is to grant access to the
-Pod's service account.
+> The scope of this proposal is to ensure that resources can be encrypted at the datastore layer
+> with sufficient metadata support to enable integration with multiple encryption providers and
+> key rotation. Encryption will be optional for any resource, but will be used by default for the
+> Secret resource. Secrets are already protected in transit via TLS.
 
-- [pod security policy design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/auth/pod-security-policy.md)
-- [pod security policy example](https://github.com/kubernetes/examples/tree/dfc12dd772da8010ea543a7444c5d9bfa51eb9cf/staging/podsecuritypolicy/rbac)
+High-level design:
 
-## encryption for secrets
+> Before a resource is written to etcd and after it is read, an encryption provider will take the
+> plaintext data and encrypt/decrypt it. These providers will be able to be created and turned on
+> depending on the users needs or requirements and will adhere to an encryption interface. This
+> interface will provide the abstraction to allow various encryption mechanisms to be implemented,
+> as well as for the method of encryption to be rotated over time.
 
-*Date: 07/28/2017, v1.7*
+The proposal proposes a `ValueTransformer` interface for all encryption providers. For the first
+iteration, a default provider that handles encryption in-process using a locally stored key on disk
+will be developed.
 
-This feature allows sensitive data such as passwords, API keys, or other resources stored in the etcd
-key-value store to be encrypted. A config file must be passed to apiserver; the config file contains
-what resources are to be encrypted, and for each resource, what encryption algorithm to use.
+A config file must be passed to apiserver. The config file contains what resources are to be
+encrypted, and for each resource, what encryption algorithm to use. Note this configuration is
+passed to apiserver as a flag, not an API object like Pod. Handling of this option can be found
+at [apiserver encryptionconfig](https://github.com/kubernetes/apiserver/tree/release-1.7/pkg/server/options/encryptionconfig).
+
+An example `EncryptionConfig`:
 
 ```yaml
 kind: EncryptionConfig
@@ -198,74 +350,111 @@ resources:
           secret: dGhpcyBpcyBwYXNzd29yZA==
 ```
 
-Note this is a config file passed to apiserver, not an API object like Pod. Handling of this
-option can be found at https://github.com/kubernetes/apiserver/tree/release-1.7/pkg/server/options/encryptionconfig
 
-## tls certificates in kubernetes
+The API server options include:
 
-*Date: 03/10/2018, v1.9*
+```
+--encryption-provider-config=/path/to/config
+--encryption-provider=default
+--encrypt-resource=v1/Secrets
+```
 
-Every Kubernetes cluster has a cluster root Certificate Authority (CA). The CA is generally used by
-cluster components to validate the API server's certificate, by the API server to validate kubelet
-client certificates, etc. To support this, the CA certificate bundle is distributed to every node in
-the cluster and is distributed as a secret attached to default service accounts.
+*Update on 10/01/2017, v1.8*
 
-TLS certificate is a new API in kubernetes, where user workloads can also use this CA to establish
-trust in kubernetes cluster. Your application can request a certificate signing using the `certificates.k8s.io`
-API using a protocol that is similar to the ACME draft. Using the API involves following steps:
-- Create key and CSR: create a private key and csr (server.key, server.csr)
-- Send the CSR to kubernetes via `certificates.k8s.io/v1beta1.CertificateSigningRequest`
-- Cluster admin review the CSR and approve it (a certificate controller is listening the request)
-- User can know download the certificate from CertificateSigningRequest.Status
-
-Note since controller manager is responsible to facilitate signing the certificate, it requires
-certificate authority's keypair (passed via flag). Also note that this API is introduced for
-requesting certificates from a cluster-level Certificate Authority (CA), i.e. it's not a generic
-certificate signing service.
-
-The main use case for certificates API is kubelet tls bootstrapping, see below.
+The initial proposal supports encryption using keys in the configuration file (plain text, encoded
+with base64), to support remote providers, a new interface called `Envolope Trasnformer` is added.
+For example, the Google Cloud KMS integration will make remote calls to KMS to encrypt and decrypt
+data instead of using local encryption. This is known as [Encryption at rest KMS integration](https://github.com/kubernetes/enhancements/issues/460).
 
 *References*
 
-- https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/
-- https://github.com/kubernetes/website/blob/snapshot-initial-v1.9/docs/tasks/tls/managing-tls-in-a-cluster.md
+- [encryption design doc](https://github.com/kubernetes/community/blob/a4a1d2f561eac609403f0db7d31d764daaea3b00/contributors/design-proposals/auth/encryption.md)
 
-## kubelet tls bootstrapping
+## (medium) entryption - kms plugin api
 
-*Date: 03/10/2018, v1.9, beta*
+- *Date: 01/09/2018*
 
-In kubernetes, node communication with master is secured; this requires kubelet to have tls certificates
-configured properly. However, this turns out to be quite painful for cluster admins, and the same
-process must be repeated not just during cluster provisioning, but also adding new node to existing
-cluster. The kubelet tls bootstrapping feature simplifies the process using a few constructs:
-- apiserver certificate API: Kubernetes api server provides a cert API to CRUD, approve and deny csr.
-- bootstrap token: A static token provided to API server (via token file), to allow kubelet to connect.
-  An unauthenticated kubelet will connect to API server using this bootstrap token, which has a very
-  minimal set of access scope. Kubelet uses the this bootstrap token (in another sense, bootstrap
-  user) to send CSR.
-- controller: kube-controller-manager is responsible for signing all CSRs and thus plays a critical
-  role in the process.
-- RBAC: this is to limit access scope of bootstrap user; there will be a cluster role `node-bootstrapper`.
+The proposal contains a detailed backgroud of designing KMS plugin API. In short, similar to moving
+in-tree volume plugins, in-tree cloud providers out-of-tree, the KMS plugin API aims to move in-tree
+KMS providers out of API server.
 
-TLS bootstrapping is mainly used for Kubelet to retrieve *client* certificate, it's also possible to
-use the process to retrive *serving* certificate.
+> Since v1.7, Kubernetes allows encryption of resources. It supports 3 kinds of encryptions: aescbc,
+> aesgcm and secretbox. They are implemented as value transformer. This feature currently only
+> supports encryption using keys in the configuration file (plain text, encoded with base64).
+>
+> Using an external trusted service to manage the keys separates the responsibility of key management
+> from operating and managing a Kubernetes cluster. So a new transformer, "Envelope Transformer",
+> was introduced in 1.8 (49350). "Envelope Transformer" defines an extension point, the interface
+> `envelope.Service`. The intent was to make it easy to add new KMS provider by implementing the
+> interface. For example the provider for Google Cloud KMS, Hashicorp Vault and Microsoft Azure
+> KeyVault.
+>
+> But as more KMS providers are added, more vendor dependencies are also introduced. So now we wish
+> to pull all KMS providers out of API server, while retaining the ability of the API server to
+> delegate encrypting secrets to an external trusted KMS service.
 
-For detailed usage, see:
-- https://kubernetes.io/docs/admin/kubelet-tls-bootstrapping/
-- https://medium.com/@toddrosner/kubernetes-tls-bootstrapping-cf203776abc7
+The high-level deisgn of KMS plugin is similar to other plugins:
+- a gRPC client is running in API Server
+- each KMS provider needs to implement a gRPC server to communicate with API Server, and manages calls to external KMS
+
+The gRPC API is defined in apiserver [envelop encrypt package](https://github.com/kubernetes/apiserver/pkg/storage/value/encrypt/envelope/v1beta1).
+
+To avoid the need to implement authentication and authorization, the KMS provider should run on the
+master and be called via a local unix domain socket. In addition, the KMS provider will be called on
+every secret write and make a remote RPC to the KMS provider to do the actual encrypt/decrypt. To
+keep the overhead of the gRPC call to the KMS provider low, the KMS provider should run on the master.
+
+KMS plugin reuses the same configuration file designed before, for example:
+
+```yaml
+kind: EncryptionConfig
+apiVersion: v1
+resources:
+  - resources:
+    - secrets
+    providers:
+    - kms:
+        name: grpc-kms-provider
+        cachesize: 1000
+        endpoint: unix:///tmp/kms-provider.sock
+```
 
 *References*
 
-- https://github.com/kubernetes/features/issues/43
-- [kubelet-tls-bootstrap design doc](https://github.com/kubernetes/community/blob/930ce65595a3f7ce1c49acfac711fee3a25f5670/contributors/design-proposals/cluster-lifecycle/kubelet-tls-bootstrap.md)
+- [kms plugin grpc api design doc](https://github.com/kubernetes/community/blob/a4a1d2f561eac609403f0db7d31d764daaea3b00/contributors/design-proposals/auth/kms-plugin-grpc-api.md)
 
-## aggregated cluster role
+## (medium) pod security policy
 
-*Date: 03/16/2018, v1.9*
+- *Date: 03/10/2018, v1.10, beta*
 
-As of 1.9, it's possible to aggregate multiple cluster roles into one role, reference [here](https://kubernetes.io/docs/admin/authorization/rbac/#aggregated-clusterroles).
+A Pod Security Policy is a cluster-level resource that controls security sensitive aspects of the
+pod specification (e.g. HostIPC, SecurityContext, etc). The PodSecurityPolicy objects define a set
+of conditions that a pod must run with in order to be accepted into the system, as well as defaults
+for the related fields. As of kuberentes 1.10 planning, Pod Security Policy moves to its own API
+group (policy group) and is in beta phase. PSP is implemented as an in-tree admission plugin.
 
-For example, following is a simple aggregated `ClusterRole`:
+PodSecurityPolicy, once created, act as `deny all`, just like NetworkPolicy. That is, creating Pod
+will be rejected unless either the User (User Role) or Pod (ServiceAccount Role) has access to at
+least one PodSecurityPolicy. The preferred method for authorizing policies is to grant access to the
+Pod's service account.
+
+- [pod security policy design doc](https://github.com/kubernetes/community/blob/a616ab2966ce4caaf5e9ff3f71117e5be5d9d5b4/contributors/design-proposals/auth/pod-security-policy.md)
+- [pod security policy example](https://github.com/kubernetes/examples/tree/dfc12dd772da8010ea543a7444c5d9bfa51eb9cf/staging/podsecuritypolicy/rbac)
+
+## (medium) aggregated cluster role
+
+- *Date: 03/16/2018, v1.9*
+
+As of 1.9, it's possible to aggregate multiple cluster roles into one role. A controller named
+`clusterroleaggregation` is running as part of the controller manager. The controller watches for
+`ClustrRole` objects with an `aggregationRule` set. The `aggregationRule` defines a label selector
+that the controller uses to match other ClusterRole objects that should be combined into the rules
+field of this one.
+
+The primary use case is to help cluster administrators manage roles, especially to extend default
+roles for custom resources, such as those served by CRDs or aggregated API servers.
+
+For example, following is a simple aggregated ClusterRole named `monitoring`:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -279,7 +468,48 @@ aggregationRule:
 rules: [] # Rules are automatically filled in by the controller manager.
 ```
 
-## image provenance
+Now when we create the following ClusterRole, the rules listed in this role will be added to `monitoring`:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-endpoints
+  labels:
+    rbac.example.com/aggregate-to-monitoring: "true"
+# When you create the "monitoring-endpoints" ClusterRole,
+# the rules below will be added to the "monitoring" ClusterRole.
+rules:
+- apiGroups: [""]
+  resources: ["services", "endpoints", "pods"]
+  verbs: ["get", "list", "watch"]
+```
+
+Later, when we create a CRD called `CronTab`, we don't have to edit either `monitoring` or
+`monitoring-endpionts`, all we need to do is create another ClusterRole:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-cron-tabs
+  labels:
+    rbac.example.com/aggregate-to-monitoring: "true"
+rules:
+- apiGroups: ["stable.example.com"]
+  resources: ["crontabs"]
+  verbs: ["get", "list", "watch"]
+```
+
+*References*
+
+- [cluster role aggregation design doc](https://github.com/kubernetes/community/blob/a4a1d2f561eac609403f0db7d31d764daaea3b00/contributors/design-proposals/auth/cluster-role-aggregation.md)
+- https://kubernetes.io/docs/admin/authorization/rbac/#aggregated-clusterroles
+
+## (medium) image provenance
+
+- *Date: 09/15/2017*
+- *Date: 04/04/2020, v1.18, alpha*
 
 Image policy aims to provide a more sophasticated way to check container images used in Pods.
 
@@ -329,7 +559,54 @@ imagePolicy:
 
 - [image provenance design doc](https://github.com/kubernetes/community/blob/59a27a2c4e3f58b0d88a7f37fc2c00f6ad74ed59/contributors/design-proposals/auth/image-provenance.md)
 
-# Workflow
+## (small) service account
+
+- *Date: 05/02/2016, v1.1, stable*
+
+When you (a human) access the cluster (e.g. using kubectl), you are authenticated by the apiserver
+as a particular User Account (currently this is usually admin, unless your cluster administrator
+has customized your cluster). Processes in containers inside pods can also contact the apiserver.
+When they do, they are authenticated as a particular Service Account (e.g. default). Service account
+only does authentication, upon creation, a username is created which can be used for ABAC
+authorization plugin. Using the plugin, admin can restrict cluster access per service account.
+
+*Reference*
+
+- [service accounts design doc](https://github.com/kubernetes/community/blob/a4a1d2f561eac609403f0db7d31d764daaea3b00/contributors/design-proposals/auth/service_accounts.md)
+
+## (small) kubelet certificate rotation
+
+- *Date: 09/27/2018, v1.12, beta*
+
+Kubelet certificate rotation includes two kinds of certificates
+- server certificate, i.e. the cert Kubelet uses to accept incoming TLS connections, flag `--rotate-certificates`
+- client certificate, i.e. the cert Kubelet uses to identify itself to API Server, flag `--rotate-server-certificates`
+
+The design is related to:
+- kubelet tls bootstrapping
+- certificate API in Kubernetes
+
+*Reference*
+
+- https://github.com/kubernetes/enhancements/issues/267
+- https://github.com/kubernetes/community/pull/602
+
+## (moved) limit node object self control
+
+- *Date: 03/10/2018, v1.9, proposal*
+- *Date: 06/23/2019, v1.15, moved to KEP*
+
+The proposal is related to node authorizer. Node authorizer allows a node to have total authority
+over its own Node object; however, we want to limit its access of its own object to some degree,
+specifically, node labels.
+
+The proposal is moved to KEP: bounding self labeling kubelets.
+
+*References*
+
+- https://github.com/kubernetes/community/pull/911
+
+# Implementation
 
 ## how authn/z works
 

@@ -67,6 +67,8 @@
   - [RoI Pooling](#roi-pooling)
   - [RoIAlign Pooling](#roialign-pooling)
   - [SPP Pooling](#spp-pooling)
+- [Model Compression](#model-compression)
+  - [Model Compression for CV](#model-compression-for-cv)
 - [Neural Network Architectural Paradigms](#neural-network-architectural-paradigms)
   - [Feedforward Neural Networks](#feedforward-neural-networks)
   - [Convolutional Neural Networks](#convolutional-neural-networks)
@@ -1276,6 +1278,28 @@ Refer to "SPPNet Model" for more details.
 *References*
 
 - https://www.shortscience.org/paper?bibtexKey=journals/corr/1406.4729
+
+# Model Compression
+
+## Model Compression for CV
+
+[The paper](https://arxiv.org/pdf/2003.11066.pdf) classifies the low-power inference methods into
+four categories:
+- Parameter Quantization and Pruning: Lowers the memory and computation costs by reducing the number of bits used to store the parameters of DNN models.
+  - Regularization for model performance improvement (Pros)
+  - Requires more iteration of training (Cons)
+  - Sparse matrix is not GPU friendly (Cons)
+  - Using different number of bits in different layers can improve performance
+- Compressed Convolutional Filters and Matrix Factorization: Decomposes large DNN layers into smaller layers to decrease the memory requirement and the number of redundant matrix operations.
+  - Breaks translation invariant benefits of large filters (Cons)
+- Network Architecture Search: Builds DNNs with different combinations of layers automatically to find a DNN architecture that achieves the desired performance.
+  - NAS can Find a balance between performance and resource requirement
+- Knowledge Distillation: Trains a compact DNN that mimics the outputs, features, and activations of a more computation-heavy DNN.
+  - Only applies to softmax activation (Cons)
+
+*References*
+
+- https://arxiv.org/pdf/2003.11066.pdf
 
 # Neural Network Architectural Paradigms
 

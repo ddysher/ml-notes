@@ -1,4 +1,25 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Environment](#environment)
+  - [minikube](#minikube)
+- [Testing](#testing)
+  - [unittest](#unittest)
+  - [e2e test](#e2e-test)
+- [Minikube](#minikube)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 > Development Tips
+
+# Environment
+
+## minikube
+
+```
+$ minikube start --memory 4096 --driver virtualbox --image-mirror-country cn image-repository registry.cn-hangzhou.aliyuncs.com/google_containers
+```
 
 # Testing
 

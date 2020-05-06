@@ -19,8 +19,12 @@
 - [Experiment: high-availability](#experiment-high-availability)
   - [Run Kubernetes](#run-kubernetes)
   - [Install Rancher server](#install-rancher-server)
+- [Projects](#projects)
+  - [rancheros](#rancheros)
+  - [k3s](#k3s)
+  - [rio](#rio)
+  - [fleet](#fleet)
 - [References](#references)
-- [TBA](#tba)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -129,6 +133,8 @@ the "database backend" of Rancher server.
 - the rancher server process is launched with tini
 - it's possible to use `kubectl get xxx` from within the container
 
+<details><summary>Deployed environment</summary><p>
+
 ```
 # Exec into the container
 $ docker exec -it b281aecbc1f4 bash
@@ -206,6 +212,7 @@ root       148  0.0  0.1 273048 11092 ?        Sl   07:25   0:00 telemetry clien
 root       222  1.8  0.0  18508  3408 pts/0    Ss   08:24   0:00 bash
 root       238  0.0  0.0  34400  2848 pts/0    R+   08:24   0:00 ps aux
 ```
+</p></details></br>
 
 ## Create custom cluster
 
@@ -689,17 +696,34 @@ userattributes.management.cattle.io                             2019-10-04T09:02
 users.management.cattle.io                                      2019-10-04T09:02:59Z
 ```
 
+# Projects
+
+## rancheros
+
+link: [rancheros](./rancheros.md)
+
+## k3s
+
+link: [k3s](./k3s.md)
+
+## rio
+
+link: [rio](./rio.md)
+
+## fleet
+
+[fleet](https://github.com/rancher/fleet/) is a system for managing a fleet (millions) fo Kubernetes
+clusters, it runs a controller in "manager cluster", and runs an agent in each "agent cluster".
+
+In fleet, each agent use standard Kubernetes controller pattern to connect to fleet manager, which
+limits its scalability.
+
 # References
 
-**Demo**
+- [rancher v2.2 demo](https://thenewstack.io/demo-rancher-2-2-reflects-the-ever-changing-dynamics-of-kubernetes/)
+- [rancher vs. rke](https://rancher.com/blog/2019/2019-02-04-rancher-vs-rke/)
 
-- https://thenewstack.io/demo-rancher-2-2-reflects-the-ever-changing-dynamics-of-kubernetes/
-
-**Blogs**
-
-- https://rancher.com/blog/2019/2019-02-04-rancher-vs-rke/
-
-# TBA
+**TBA**
 
 - controllers
   - rough role of each controller

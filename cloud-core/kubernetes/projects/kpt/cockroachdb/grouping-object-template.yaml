@@ -1,0 +1,35 @@
+# NOTE: auto-generated. Some fields should NOT be modified.
+# Date: 2020-04-13 17:31:25 CST
+#
+# Contains the "grouping object" template ConfigMap.
+# When this object is applied, it is handled specially,
+# storing the metadata of all the other objects applied.
+# This object and its stored inventory is subsequently
+# used to calculate the set of objects to automatically
+# delete (prune), when an object is omitted from further
+# applies. When applied, this "grouping object" is also
+# used to identify the entire set of objects to delete.
+#
+# NOTE: The name of this grouping object template file
+# (e.g. grouping-object-template.yaml) does NOT have any
+# impact on group-related functionality such as deletion
+# or pruning.
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # DANGER: Do not change the grouping object namespace.
+  # Changing the namespace will cause a loss of continuity
+  # with previously applied grouped objects. Set deletion
+  # and pruning functionality will be impaired.
+  namespace: default
+  # NOTE: The name of the grouping object does NOT have
+  # any impact on group-related functionality such as
+  # deletion or pruning.
+  name: grouping-object
+  labels:
+    # DANGER: Do not change the value of this label.
+    # Changing this value will cause a loss of continuity
+    # with previously applied grouped objects. Set deletion
+    # and pruning functionality will be impaired.
+    cli-utils.sigs.k8s.io/inventory-id: cockroachdb-113327

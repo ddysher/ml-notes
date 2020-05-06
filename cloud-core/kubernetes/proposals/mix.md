@@ -3,11 +3,29 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Feature & Design](#feature--design)
-  - [cli: kubectl gochas](#cli-kubectl-gochas)
+  - [cli: kubectl diff](#cli-kubectl-diff)
+  - [cli: kubectl move to stage](#cli-kubectl-move-to-stage)
   - [cloud: support out-of-process and out-of-tree cloud providers](#cloud-support-out-of-process-and-out-of-tree-cloud-providers)
-  - [example: analysis of guestbook example](#example-analysis-of-guestbook-example)
-  - [thockin mentor](#thockin-mentor)
-- [Links & Resources](#links--resources)
+- [Kubernetes Releases](#kubernetes-releases)
+  - [v1.18, 03/25/2020](#v118-03252020)
+  - [v1.17, 12/09/2019](#v117-12092019)
+  - [v1.16, 09/18/2019](#v116-09182019)
+  - [v1.15, 06/19/2019](#v115-06192019)
+  - [v1.14, 03/25/2019](#v114-03252019)
+  - [v1.13, 12/08/2018](#v113-12082018)
+  - [v1.12, 09/27/2018](#v112-09272018)
+  - [v1.11, 06/27/2018](#v111-06272018)
+  - [v1.10, 03/27/2018](#v110-03272018)
+  - [v1.9, 12/15/2017](#v19-12152017)
+  - [v1.8, 09/29/2017](#v18-09292017)
+  - [v1.7, 06/30/2017](#v17-06302017)
+  - [v1.6, 03/28/2017](#v16-03282017)
+  - [v1.5, 12/13/2016](#v15-12132016)
+  - [v1.4, 09/26/2016](#v14-09262016)
+  - [References](#references)
+- [Resources](#resources)
+  - [sigs & ugs & wgs](#sigs--ugs--wgs)
+  - [links & archives](#links--archives)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -15,12 +33,32 @@
 
 # Feature & Design
 
-## cli: kubectl gochas
+## cli: kubectl diff
 
-*Date: 08/05/2015*
+- *Date: 03/30/2020, v1.18, stable*
 
-- When running something like `kubectl get nodes`, the real call is at `pkg/kubectl/resource/selector.go`
-- Verbose output `kubectl -v 10 get pods --all-namespaces`
+`kubectl diff` is a GA feature that enables diffing changes in Kubernetes objects, the diff works
+by comparing the "live configuration in the current cluster state" vs. "future configuration if we
+applied the yaml file". The "future configuration" is retrieved via applying request that is sent
+with the `dryRun` flag.
+
+*References*
+
+- [kubectl diff KEP link](https://github.com/kubernetes/enhancements/blob/89c4310e3934fad5a1e339855b7c92c553fae597/keps/sig-cli/20200115-kubectl-diff.md)
+
+## cli: kubectl move to stage
+
+- *Date: 03/30/2020, v1.18, stable*
+
+The kubectl code base locates in kubernetes/kubernetes repository, which posses some challenges.
+The motivation to move kubectl to stage is:
+- enable moving kubectl package to a dedicated repository kubernetes/kubectl
+- remove tight coupling between kubectl and internal kubernetes code base
+- external client depending on kubectl code doesn't have to depend on kubernetes repository as a whole
+
+*References*
+
+- [kubectl staging KEP link](https://github.com/kubernetes/enhancements/blob/000b16193b2e9833cd21884e58aaa05a03f11ef6/keps/sig-cli/kubectl-staging.md)
 
 ## cloud: support out-of-process and out-of-tree cloud providers
 
@@ -38,7 +76,423 @@ be more easily replaced.
 - [developing cloud controller manager](https://github.com/kubernetes/website/blob/snapshot-initial-v1.9/docs/tasks/administer-cluster/developing-cloud-controller-manager.md)
 - [keepalived cloud provider](https://github.com/munnerz/keepalived-cloud-provider/tree/0.0.1)
 
-## example: analysis of guestbook example
+# Kubernetes Releases
+
+## v1.18, 03/25/2020
+
+Kuberentes release v1.18 contains equal number of graduated features and new features.
+
+Major Themes:
+- SIG-Node: Topology Manager moves to beta, which enables NUMA alignment of CPU and devices.
+- SIG-API-Machinery: Serverside Apply to beta, which records changes to API objects.
+- SIG-Network: A new type `IngressClass` is added, similar to `StorageClass`.
+- SIG-CLI: Added a new `kubectl alpha debug` command, which uses Ephemeral Container to debug a running Pod.
+- SIG-Windows: Windows CSI support introduces alpha
+
+Graduated to Stable:
+- Taint Based Eviction: Taints nodes with `NoExecute` when they become unready or unreachable.
+- `kubectl diff`: Users can run a kubectl command to view the difference between a locally declared object configuration and the current state of a live object.
+- CSI Block storage support: Use `volumeMode` to claim a raw block via Persistent Volume.
+- API Server dry run: Add apiserver `dry-run` query-parameter so that requests can be validated and "processed" without actually being persisted.
+- Pass Pod information in CSI calls
+- Support Out-of-Tree vSphere Cloud Provider
+- Support GMSA for Windows workloads
+- Skip attach for non-attachable CSI volumes
+- PVC cloning: Enable specifying an existing PVC as a DataSource parameter for creating a new PVC (Cloning)
+- Moving kubectl package code to staging
+- RunAsUserName for Windows
+- AppProtocol for Services and Endpoints: Add `AppProtocol` field to ServicePort and EndpointPort
+- Extending Hugepage Feature: Multi-size & container isolation
+- client-go signature refactor to standardize options and context handling
+- Node-local DNS cache: run a per-node DNS cache with upstream set to kube-dns
+
+Major Changes
+- EndpointSlice API (Beta)
+- Moving kubectl package code to staging
+- CertificateSigningRequest API
+- Extending Hugepage Feature: Different sized hugepage & container isolation
+- client-go signature refactor to standardize options and context handling
+
+## v1.17, 12/09/2019
+
+Kubernetes release v1.17 is a stability release, with many features graduated to stable and beta,
+and introduces only a few new features.
+
+Major Themes:
+- SIG-Cloud-Provider: Cloud Provider labels reach general availability (stable)
+- SIG-Storage: Volume snapshot moves to beta, which allows snapshot PV and restore from previous status.
+- SIG-Storage: CSI Migration Beta
+
+Graduated to Stable:
+- Taint Node by Condition
+- Configurable Pod Process Namespace Sharing: configure containers within a pod to share a common PID namespace
+- Schedule DaemonSet Pods by kube-scheduler
+- Dynamic Maximum Volume Count: maximum number of volume to mount per node
+- Kubernetes CSI Topology Support: topology aware scheduling of volumes
+- Provide Environment Variables Expansion in SubPath Mount
+- Defaulting of Custom Resources
+- Move Frequent Kubelet Heartbeats To Lease API
+- Break Apart The Kubernetes Test Tarball
+- Add Watch Bookmarks Support
+- Behavior-Driven Conformance Testing
+- Finalizer Protection For Service Loadbalancers
+- Avoid Serializing The Same Object Independently For Every Watcher
+
+Major Changes
+- Add IPv4/IPv6 Dual Stack Support (Alpha)
+
+Other Notable Features
+- Topology Aware Routing of Services (Alpha)
+- RunAsUserName for Windows
+
+## v1.16, 09/18/2019
+
+Kuberentes release v1.16 contains equal number of graduated features and new features.
+
+Major Themes:
+- SIG-API-Machinery: Custom Resources reach General Availability
+- SIG-Instrumentation: Overhauled metrics
+- SIG-Storage: Volume Extension, e.g. volume resizing, CSI changes, to beta
+
+Major Changes:
+- Windows Enhancements: GMSA (beta), kubeadm support (alpha), CSI support (alpha)
+- EndpointSlices (Alpha): Greater scalability and extensibility
+- Kubernetes API Changes: Deprecation of older APIs, e.g. extensions/v1beta1/xxx
+
+## v1.15, 06/19/2019
+
+Kubernetes release v1.15 focuses on Extensibility and Continuous Improvement.
+
+Major Themes:
+- Extensibility around core Kubernetes APIs
+  - CustomResourceDefinition Webhook Conversion (beta): ability to convert between multiple CRD versions
+  - CustomResourceDefinition OpenAPI Publishing (beta): publish CRD schema for client discovery
+  - CustomResourceDefinition Pruning (beta): automatic removal of unknown fields in objects sent to a Kubernetes API
+  - CustomResourceDefinition Defaulting (alpha): Defaults are set for unspecified field in an object sent to/read from API
+  - Admission Webhook Reinvocation & Improvements (beta): reinvocation of admission webhook
+- Cluster Lifecycle Stability and Usability Improvements
+  - kubeadm HA setup to beta
+  - kubeadm certificate management
+- Continued improvement of CSI
+  - Migration of in-tree volume plugins
+  - Volume cloning (alpha)
+
+Additional Notable Feature Updates:
+- Support for go modules in Kubernetes Core
+- Continued preparation on cloud provider extraction and code organization
+- Kubectl get and describe now work with extensions
+- Nodes now support third party monitoring plugins, aka, compute device assignment
+- A new Scheduling Framework for schedule plugins is now Alpha
+- ExecutionHook API designed to trigger hook commands in the containers for different use cases is now Alpha.
+- Continued deprecation of extensions/v1beta1, apps/v1beta1, and apps/v1beta2 APIs
+
+## v1.14, 03/25/2019
+
+Kubernetes release v1.14 focuses on Extensibility and Supporting more workloads.
+
+Major Themes:
+- Production-level Support for Windows Nodes (GA)
+  - Windows Server 2019 Node
+  - Windows Networking
+  - Many others
+- Kubectl Changes
+  - kustomize integration with `kubectl -k`: standard-alone kustomize binary is also available and added to kubectl when releasing kubernetes
+  - new kubectl docs and logo
+  - kubectl plugins become simpler and moved to stable
+- Persistent Local Volumes are Now GA
+- PID Limiting is Moving to Beta
+
+Additional Notable Feature Updates
+- Pod priority and preemption
+- Pod Readiness Gates
+- Harden the default RBAC discovery clusterrolebindings
+
+## v1.13, 12/08/2018
+
+Kubernetes 1.13 has been one of the shortest releases to date at 10 weeks. This release continues
+to focus on stability and extensibility of Kubernetes.
+
+Major Themes:
+- Simplified Kubernetes Cluster Management with kubeadm in GA: bootstrapping, upgrade, pluggability and configurability
+- Container Storage Interface (CSI) Goes GA: extensibility
+- CoreDNS is Now the Default DNS Server for Kubernetes: extensibility, simplicity
+
+Additional Notable Feature Updates:
+- Support for 3rd party device monitoring plugins (alpha), aka, compute device assignment.
+- Kubelet Device Plugin Registration (stable), aka, plugin watcher
+- Topology Aware Volume Scheduling (stable)
+- APIServer DryRun (beta): apply action moves from kubectl to apiserver
+- `kubectl diff` (beta)
+- Raw block device using persistent volume source (beta)
+
+## v1.12, 09/27/2018
+
+Kubernetes 1.12 continues to focus on internal improvements and graduating features to stable.
+
+Major Themes:
+- General Availability of Kubelet TLS Bootstrap
+- Support for Azure Virtual Machine Scale Sets (VMSS) and Cluster-Autoscaler is Now Stable
+
+Additional Notable Feature Updates:
+- RuntimeClass for running multiple runtimes in a cluster (alpha)
+- Snapshot/Restore functionality for Kubernetes and CSI (alpha)
+- Topology aware dynamic provisioning (beta)
+- Configurable pod process namespace sharing (beta)
+- Taint node by condition (beta)
+- Arbitrary/Custom Metrics in the Horizontal Pod Autoscaler (beta)
+- Horizontal Pod Autoscaler to reach proper size faster (beta)
+- Vertical Scaling of Pods (beta)
+- Encryption at rest via KMS (beta): KMS includes Google Cloud KMS, Azure Key Vault, AWS DMS and Hashicorp Vault
+- Kubelet server certificate bootstrap and rotation (beta)
+
+## v1.11, 06/27/2018
+
+Kubernetes 1.11 continues to advance maturity, scalability, and flexibility of Kubernetes.
+
+Major Themes:
+- IPVS-based in-cluster service load balancing graduates to stable
+- CoreDNS for cluster DNS is promoted to stable
+- Dynamic Kubelet configuration moves to beta: configure Kubelet using structured format via configmap (instead of flag)
+- Custom resource definitions supporting multiple versions moves to beta
+- Enhancement to CSI: raw block in CSI, new registration mechanism, etc
+
+New Storage Features:
+- Online resizing of Persistent Volumes (alpha)
+- Dynamic maximum volume count (alpha)
+- Storage object in use protection (stable)
+
+## v1.10, 03/27/2018
+
+Kubernetes v1.10 continues to advance maturity, extensibility, and pluggability of Kubernetes.
+
+Major Themes:
+- Storage - CSI and Local Storage move to beta, as well as storage object in use protection (beta)
+- Security - External credential providers to alpha
+- Networking - CoreDNS as a DNS provider to beta
+
+## v1.9, 12/15/2017
+
+Kubernetes v1.9 continues the evolution of an increasingly rich feature set, more robust stability,
+and even greater community contributions.
+
+Major Themes:
+- Workloads API GA: aka, apps/v1 Workloads API
+- Windows Support (beta): support Windows server
+- Storage Enhancements with CSI (alpha)
+
+Additional Notable Feature Updates:
+- Custom Resource Definition Validation (beta)
+- Hardware accelerator moves to alpha
+- CoreDNS for cluster DNS (alpha)
+- IPVS mode for kube-proxy (beta)
+
+## v1.8, 09/29/2017
+
+Kubernetes v1.8 represents a snapshot of many exciting enhancements and refinements underway.
+
+Security:
+- Graduates support for role based access control (RBAC) to stable
+- Graduates support for Network Policy outbound traffic to beta
+- Transport Layer Security (TLS) certificate rotation for the Kubelet graduates to beta
+
+Workload:
+- Promotes the core Workload APIs to beta
+- Batch API CronJobs to beta
+- Custom Resource Definitions remain in beta, with many extension features in progress
+
+Notable New Features:
+- Volume snapshots
+- PV resizing
+- Automatic taints
+- Priority pods
+- `kubectl` plugins
+
+## v1.7, 06/30/2017
+
+Kubernetes 1.7 is a milestone release that adds security, storage and extensibility features.
+
+Security:
+- Encrypted secrets (alpha)
+- Network policy for pod-to-pod communication (stable)
+- Node authorizer to limit kubelet access (alpha)
+- Kubelet client/server TLS certificate rotation
+- More customizable and extensible audit logs
+
+Stateful Workloads:
+- Automated updates to StatefulSets and enhances updates for DaemonSets
+- Burst mode for scaling StatefulSets faster
+- Local Storage (alpha)
+
+Extensibility:
+- API aggregation
+- CRI enhancement
+
+Additional Features:
+- External admission controllers (alpha)
+- Policy-based Federated Resource Placement (alpha)
+
+## v1.6, 03/28/2017
+
+Kubernetes 1.6 focuses on scale and automation, to help you deploy multiple workloads to multiple
+users on a cluster.
+
+Scale and Federation:
+- Supports 5,000 node (150,000 pod) clusters
+- `kubefed` command line utility graduated to beta
+
+Security and Setup:
+- RBAC graduates to beta: RBAC allows cluster administrators to selectively grant particular users
+  or service accounts fine-grained access to specific resources on a per-namespace basis.
+- kubeadm is now beta, with base features include RBAC setup, Bootstrap Token system and Certificates API.
+
+Advanced Scheduling:
+- Node affinity/anti-affinity (beta)
+- Taints and tolerations (beta)
+- Pod affinity and anti-affinity (beta)
+- Multiple schedulers (beta)
+
+Dynamic Storage Provisioning:
+- StorageClass and dynamic volume provisioning are promoted to stable
+- Addition of many volume plugins
+
+Additional Features:
+- Docker-CRI (beta)
+- etcd v3
+- Node Allocatable
+- Out-of-tree cloud provider (alpha)
+- Per-pod-eviction (alpha)
+- Pod Injection Policy, aka, PodPreset (alpha)
+- Custom metrics for HPA (alpha)
+- Nvidia GPU support (alpha)
+
+## v1.5, 12/13/2016
+
+Kubernetes 1.5 release focuses on supporting production workloads.
+
+Workload (stateful workload):
+- StatefulSet (previously PetSet) moves to beta: no longer force deletes pods on unresponsible nodes
+- PodDisruptionBudget moves to beta: `kubectl drain` will respect the budget policy
+
+Cluster:
+- Kubefed (alpha): introduces a new federation command (v1)
+- HA Master (alpha)
+
+Node:
+- Windows server containers (alpha): support for Windows Server 2016 nodes
+- Container Runtime Interface, aka, CRI (alpha)
+- Node conformance test: a node passes conformance test is qualified to join a Kubernetes
+
+## v1.4, 09/26/2016
+
+Kubernetes 1.5 release makes Kubernetes easy to install, as well as easier to build, deploy and
+manage distributed applications.
+
+Cluster:
+- kubeadm (alpha)
+- certficate API for kubelet TLS bootstrap and a new discovery API (alpha)
+
+Workload (stateful workload):
+- ScheduledJob, aka, CronJob (alpha)
+- Dynamic PVC Provisioning (beta)
+- Curated helm charts
+
+Cluster federation (v1):
+- Federated ReplicaSets (beta)
+- Federated Service (beta)
+- Federated Ingress (alpha)
+
+Container security support:
+- Pod Security Policy (alpha)
+- AppArmor (beta), configured via annotations
+
+Infrastructure enhancements
+- Pod Affinity/Anti-Affinity (alpha)
+- Guaranteed Scheduling For Critical Add-On Pods
+- PodDisruptionBudget (alpha)
+
+## References
+
+- https://kubernetes.io/blog/2020/03/25/kubernetes-1-18-release-announcement/
+- https://kubernetes.io/blog/2019/12/09/kubernetes-1-17-release-announcement/
+- https://kubernetes.io/blog/2019/09/18/kubernetes-1-16-release-announcement/
+- https://kubernetes.io/blog/2019/06/19/kubernetes-1-15-release-announcement/
+- https://kubernetes.io/blog/2019/03/25/kubernetes-1-14-release-announcement/
+- https://kubernetes.io/blog/2018/12/03/kubernetes-1-13-release-announcement/
+- [https://kubernetes.io/blog/2018/09/27/kubernetes-1.12-kubelet-tls-bootstrap-and-azure-...](https://kubernetes.io/blog/2018/09/27/kubernetes-1.12-kubelet-tls-bootstrap-and-azure-virtual-machine-scale-sets-vmss-move-to-general-availability/)
+- https://kubernetes.io/blog/2018/06/27/kubernetes-1.11-release-announcement/
+- https://kubernetes.io/blog/2018/03/26/kubernetes-1.10-stabilizing-storage-security-networking/
+- https://kubernetes.io/blog/2017/12/kubernetes-19-workloads-expanded-ecosystem/
+- https://kubernetes.io/blog/2017/09/kubernetes-18-security-workloads-and/
+- https://kubernetes.io/blog/2017/06/kubernetes-1-7-security-hardening-stateful-application-extensibility-updates/
+- https://kubernetes.io/blog/2017/03/kubernetes-1-6-multi-user-multi-workloads-at-scale/
+- https://kubernetes.io/blog/2016/12/kubernetes-1-5-supporting-production-workloads/
+- https://kubernetes.io/blog/2016/09/kubernetes-1-4-making-it-easy-to-run-on-kuberentes-anywhere/
+- https://kubernetes.io/blog/2016/07/kubernetes-1-3-bridging-cloud-native-and-enterprise-workloads/
+- http://blog.kubernetes.io/2018/03/first-beta-version-of-kubernetes-1-10.html
+
+# Resources
+
+## sigs & ugs & wgs
+
+- sig-api-machinery
+- sig-apps
+- sig-architecture
+- sig-auth
+- sig-autoscaling
+- ~sig-big-data~
+- ~sig-cluster-ops~
+- sig-cli
+- sig-cloud-provider
+- sig-cluster-lifecycle
+- sig-contributor-experience
+- sig-docs
+- ~sig-openstack~
+- sig-instrumentation
+- sig-multicluster
+- sig-network
+- sig-node
+- sig-pm
+- sig-release
+- sig-scalability
+- sig-scheduling
+- sig-service-catalog
+- sig-storage
+- sig-testing
+- sig-ui
+- sig-usability
+- sig-windows
+- ug-big-data
+- ug-vmware-users
+- ~wg-app-def~
+- wg-apply
+- ~wg-cluster-api~
+- wg-component-standard
+- ~wg-container-identity~
+- wg-data-protection
+- ~wg-kubeadm-adoption~
+- wg-iot-edge
+- wg-k8s-infra
+- wg-lts
+- wg-machine-learning
+- wg-multitenancy
+- wg-policy
+- wg-resource-management
+- wg-security-audit
+
+## links & archives
+
+A collection of Kubernetes resources:
+
+- [Community](https://github.com/kubernetes/community)
+- [Enhancements](https://github.com/kubernetes/enhancements)
+- [LWKD (Last Week in Kubernetes Development)](http://lwkd.info/)
+- [TGIK](https://github.com/heptio/tgik)
+- [CNCF TOC](https://github.com/cncf/toc)
+- https://github.com/jamiehannaford/what-happens-when-k8s
+
+**Archives**
+
+<details><summary>analysis of guestbook example</summary><p>
 
 *Date: 09/01/2014, Running on GCE*
 
@@ -438,7 +892,9 @@ root      2938  0.9  1.3 146352 50996 ?        Sl   Jun17  97:42 /usr/local/bin/
 root      2981  0.2  0.4  84360 16816 ?        Sl   Jun17  30:55 /usr/local/bin/kube-proxy --master=https://kubernetes-master --kubeconfig=/var/lib/kube-proxy/kubeconfig --v=2
 ```
 
-## thockin mentor
+</p></details></br>
+
+<details><summary>thockin mentor</summary><p>
 
 ```
 <thockin> #1550  #1549  #1513 (is bigger)  #1488 (is cleanup)  #1442  #1366
@@ -482,67 +938,4 @@ type Volumes interface {
 }
 ```
 
-# Links & Resources
-
-**Community**
-
-- Link: https://github.com/kubernetes/community
-- Contents: Proposals, KEP, etc
-
-**Feature**
-
-- Link: https://github.com/kubernetes/features
-- Contents: Feature tracking
-
-**LWKD**
-
-- Link: http://lwkd.info/
-- Contents: Summarizing code activity in the Kubernetes project (Last Week in Kubernetes Development)
-
-**TGIK**
-
-- Link: https://github.com/heptio/tgik
-- Contents: Kubernetes related broadcast from Heptio
-
-**CNCF TOC**
-
-- Link: https://github.com/cncf/toc
-- Link: https://lists.cncf.io/
-- Contents: Proposals, Bi-weekly meeting notes, etc
-
-**Others**
-
-- https://github.com/jamiehannaford/what-happens-when-k8s
-
-**Timeline**
-
-A collection of links for tracking Kubernetes version
-
-- http://blog.kubernetes.io/2018/03/first-beta-version-of-kubernetes-1-10.html
-
-**SIGs and WGs**
-
-Upstream SIGs:
-- https://github.com/kubernetes/community/tree/master/sig-architecture
-- https://github.com/kubernetes/community/tree/master/sig-big-data
-- https://github.com/kubernetes/community/tree/master/sig-cli
-- https://github.com/kubernetes/community/tree/master/sig-cluster-lifecycle
-- https://github.com/kubernetes/community/tree/master/sig-cluster-ops
-- https://github.com/kubernetes/community/tree/master/sig-contributor-experience
-- https://github.com/kubernetes/community/tree/master/sig-docs
-- https://github.com/kubernetes/community/tree/master/sig-openstack
-- https://github.com/kubernetes/community/tree/master/sig-product-management
-- https://github.com/kubernetes/community/tree/master/sig-release (https://github.com/kubernetes/sig-release)
-- https://github.com/kubernetes/community/tree/master/sig-service-catalog
-- https://github.com/kubernetes/community/tree/master/sig-testing
-- https://github.com/kubernetes/community/tree/master/sig-ui
-- https://github.com/kubernetes/community/tree/master/sig-windows
-
-Upstream WGs:
-- https://github.com/kubernetes/community/tree/master/wg-app-def
-- https://github.com/kubernetes/community/tree/master/wg-cloud-provider
-- https://github.com/kubernetes/community/tree/master/wg-cluster-api
-- https://github.com/kubernetes/community/tree/master/wg-container-identity
-- https://github.com/kubernetes/community/tree/master/wg-kubeadm-adoption
-- https://github.com/kubernetes/community/tree/master/wg-multitenancy
-- https://github.com/kubernetes/community/tree/master/wg-policy
+</p></details></br>

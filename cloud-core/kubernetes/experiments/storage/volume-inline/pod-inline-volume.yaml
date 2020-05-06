@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx:1.13
+      image: nginx:1.15
       volumeMounts:
       - mountPath: "/var/www/html"
         name: mypd
@@ -14,5 +14,3 @@ spec:
       gcePersistentDisk:
         pdName: disk-1
         fsType: ext4
-
-        

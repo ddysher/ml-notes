@@ -6,12 +6,10 @@
   - [scalability improvements in kubernetes v1.2](#scalability-improvements-in-kubernetes-v12)
   - [scalability improvements in kubernetes v1.3](#scalability-improvements-in-kubernetes-v13)
   - [scalability improvements in kubernetes v1.6](#scalability-improvements-in-kubernetes-v16)
+  - [(summary) kubernetes scalability path from v1.1 to v1.6](#summary-kubernetes-scalability-path-from-v11-to-v16)
   - [kubernetes scalability SLO (v1.2)](#kubernetes-scalability-slo-v12)
   - [kubernetes scalability SLO (v1.6)](#kubernetes-scalability-slo-v16)
   - [scalability testing and kubemark](#scalability-testing-and-kubemark)
-- [Others](#others)
-  - [kubernetes scalability path (v1.1 -> v1.6)](#kubernetes-scalability-path-v11---v16)
-  - [references](#references)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -53,6 +51,20 @@ Below is a digest from kubernetes blog post:
   - switching all controllers to a new recommended design using shared informers, which reduced resource consumption of controller-manager
   - optimizing individual operations in the API server (conversions, deep-copies, patch)
   - reducing memory allocation in the API server (which significantly impacts the latency of API calls)
+
+## (summary) kubernetes scalability path from v1.1 to v1.6
+
+Below is a list of supported nodes and pods per node metrics in each Kubernetes version:
+- v1.1: 500 nodes, 30 pods per node
+- v1.2: 1000 nodes, 100 pods per node
+- v1.3: 2000 nodes, 60000 pod cluster
+- v1.6: 5000 nodes, 150000 pod cluster
+
+*References*
+
+- [1000-nodes-and-beyond-updates-to-Kubernetes-performance-and-scalability-in-12](http://blog.kubernetes.io/2016/03/1000-nodes-and-beyond-updates-to-Kubernetes-performance-and-scalability-in-12.html)
+- [kubernetes-updates-to-performance-and-scalability-in-1.3](http://blog.kubernetes.io/2016/07/kubernetes-updates-to-performance-and-scalability-in-1.3.html)
+- [scalability-updates-in-kubernetes-1.6](http://blog.kubernetes.io/2017/03/scalability-updates-in-kubernetes-1.6.html)
 
 ## kubernetes scalability SLO (v1.2)
 
@@ -101,19 +113,3 @@ A few notes:
 - kubemark is a separate binary under `kubernetes/cmd/kubemark` with launch option in kubelet morph
   mode or kubeproxy morph mode; the binary first mocks out operations with side effect (e.g. mock out
   iptables interface) and then run real kubelet/kubeproxy code
-
-# Others
-
-## kubernetes scalability path (v1.1 -> v1.6)
-
-Below is a list of supported nodes and pods per node metrics in each Kubernetes version:
-- v1.1: 500 nodes, 30 pods per node
-- v1.2: 1000 nodes, 100 pods per node
-- v1.3: 2000 nodes, 60000 pod cluster
-- v1.6: 5000 nodes, 150000 pod cluster
-
-## references
-
-- http://blog.kubernetes.io/2016/03/1000-nodes-and-beyond-updates-to-Kubernetes-performance-and-scalability-in-12.html
-- http://blog.kubernetes.io/2016/07/kubernetes-updates-to-performance-and-scalability-in-1.3.html
-- http://blog.kubernetes.io/2017/03/scalability-updates-in-kubernetes-1.6.html

@@ -18,9 +18,10 @@
 - *Date: 06/01/2017, project release v17.04*
 - *Date: 10/20/2019, project release v19.07*
 
-Trident is an external kubernetes persistent volume provisioner for NetApp ONTAP, SolidFire, and
-E-Series systems. Trident can be run independently and interacted with via its REST API alone, but
-users will benefit the most from its functionality as an external provisioner for Kubernetes storage.
+[Trident](https://github.com/NetApp/trident/) is an external kubernetes persistent volume provisioner
+for NetApp ONTAP, SolidFire, and E-Series systems. Trident can be run independently and interacted
+with via its REST API alone, but users will benefit the most from its functionality as an external
+provisioner for Kubernetes storage.
 
 # Architecture
 

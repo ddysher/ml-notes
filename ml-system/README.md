@@ -139,7 +139,8 @@ List of projects in Hadoop stack.
 List of end-to-end machine learning platforms.
 
 - [ffdl](./platforms/ffdl)
-- [kubeflow](./platforms/kubeflow)
+- [kubeflow](../ml-core/kubeflow)
 - [pipelineai](./platforms/pipelineai)
 - [riseml](./platforms/riseml)
 - [openpai](./platforms/openpai)
+- [metaflow](./platforms/metaflow)

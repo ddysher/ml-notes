@@ -3,32 +3,34 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [KEPs](#keps)
-  - [execution hook](#execution-hook)
-  - [pvc taint](#pvc-taint)
-  - [volume subpath env expansion](#volume-subpath-env-expansion)
+  - [20181029 - volume subpath env expansion](#20181029---volume-subpath-env-expansion)
+  - [20181111 - pvc cloning (extend datasource field)](#20181111---pvc-cloning-extend-datasource-field)
+  - [20190408 - volume scheduling limits](#20190408---volume-scheduling-limits)
+  - [20190120 - execution hook](#20190120---execution-hook)
+  - [(closed) pvc taint](#closed-pvc-taint)
 - [Feature & Design](#feature--design)
-  - [volume provisioning and storageclass](#volume-provisioning-and-storageclass)
-  - [configurable volume provisioning](#configurable-volume-provisioning)
-  - [volume propagation, hostpath](#volume-propagation-hostpath)
-  - [volume hostpath qualifiers](#volume-hostpath-qualifiers)
-  - [volume mount options](#volume-mount-options)
-  - [volume snapshot](#volume-snapshot)
-  - [containerized mounter pod](#containerized-mounter-pod)
-  - [local volume management](#local-volume-management)
-  - [local storage capacity isolation](#local-storage-capacity-isolation)
-  - [local persistent volume](#local-persistent-volume)
-  - [raw block consumption in kubernetes](#raw-block-consumption-in-kubernetes)
-  - [volume topology-aware scheduling](#volume-topology-aware-scheduling)
-  - [growing persistent volume](#growing-persistent-volume)
-  - [volume operation metrics](#volume-operation-metrics)
-  - [exposing storage (pv/pvc) metrics via kubelet](#exposing-storage-pvpvc-metrics-via-kubelet)
-  - [csi volume plugin](#csi-volume-plugin)
-  - [storage object in use protection](#storage-object-in-use-protection)
-  - [pod safety](#pod-safety)
-  - [volume.subPath](#volumesubpath)
-  - [flexvolume and dynamic flexvolume](#flexvolume-and-dynamic-flexvolume)
-  - [disk accounting](#disk-accounting)
-- [Workflow](#workflow)
+  - [(large) volume provisioning and storageclass](#large-volume-provisioning-and-storageclass)
+  - [(large) volume snapshot](#large-volume-snapshot)
+  - [(large) volume topology-aware scheduling](#large-volume-topology-aware-scheduling)
+  - [(large) csi volume plugin](#large-csi-volume-plugin)
+  - [(large) local volume management](#large-local-volume-management)
+  - [(medium) local storage capacity isolation](#medium-local-storage-capacity-isolation)
+  - [(medium) local persistent volume](#medium-local-persistent-volume)
+  - [(medium) volume propagation, hostpath](#medium-volume-propagation-hostpath)
+  - [(medium) raw block consumption in kubernetes](#medium-raw-block-consumption-in-kubernetes)
+  - [(medium) growing persistent volume](#medium-growing-persistent-volume)
+  - [(small) volume hostpath qualifiers](#small-volume-hostpath-qualifiers)
+  - [(small) volume mount options](#small-volume-mount-options)
+  - [(small) volume operation metrics](#small-volume-operation-metrics)
+  - [(small) exposing storage (pv/pvc) metrics via kubelet](#small-exposing-storage-pvpvc-metrics-via-kubelet)
+  - [(small) storage object in use protection](#small-storage-object-in-use-protection)
+  - [(small) volume.subPath](#small-volumesubpath)
+  - [(closed) configurable volume provisioning](#closed-configurable-volume-provisioning)
+  - [(discussion) disk accounting](#discussion-disk-accounting)
+  - [(discussion) pod safety](#discussion-pod-safety)
+  - [(deprecated) flexvolume and dynamic flexvolume](#deprecated-flexvolume-and-dynamic-flexvolume)
+  - [(deprecated) containerized mounter pod](#deprecated-containerized-mounter-pod)
+- [Implementation](#implementation)
   - [kubelet volume setup](#kubelet-volume-setup)
   - [kubernetes storage components](#kubernetes-storage-components)
 
@@ -42,99 +44,10 @@
 
 # KEPs
 
-## execution hook
-
-- *Date: 02/13/2019, v1.13, design*
-- *Date: 06/29/2019, v1.15, design*
-
-The KEP introduces ExecutionHook inside of container, which should be executed by different external
-controllers upon taking necessary actions, e.g. following is an example Pod spec. Each hook has a
-type definition: external controller should proactively watch and execute the hook if the pod has
-specific types that it cares about.
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: hook-demo
-spec:
-  containers:
-  - name: demo-container
-    image: mysql
-    executionHooks:
-      - name: freeze
-        type: Freeze
-        exec:
-          command: [“run_quiesce.sh”]
-        timeoutSeconds: 30
-      - name: thaw
-        type: Thaw
-        exec:
-          command: [“run_unquiesce.sh”]
-        timeoutSeconds: 30
-```
-
-The proposal is introduced for volume snapshot support to ensure consistent snapshot, but can also
-extend to other use cases. In particular, two types are defined: `Freeze` and `Thaw`. Snapshot
-controller will look up the hooks before/after taking a snapshot and execute them accordingly.
-
-*Update on 06/29/2019, v1.15*
-
-The proposal is changed to introduce two new API objects: `ExecutionHook` and `HookAction`, which
-can maximize reusability. Following is example objects:
-
-```yaml
-apiVersion: apps.k8s.io/v1alpha1
-kind: HookAction
-metadata:
-  name: action-demo
-Action:
-  exec:
-    command: [“run_quiesce.sh”]
-  actionTimeoutSeconds: 10
----
-apiVersion: apps.k8s.io/v1alpha1
-kind: ExecutionHook
-metadata:
-  name: hook-demo
-spec:
-  podContainerNamesList:
-    -podName: myPod1
-      -containerName: myContainer1
-      -containerName: myContainer2
-    -podName: myPod2
-      -containerName: myContainer3
-      -containerName: myContainer4
-  hookActionName: action-demo
-```
-
-A new `Execution Controller` component is added which watches the `ExecutionHook` API object and
-take actions based on the object status and also update the status.
-
-External controller, e.g. snapshot controller, will be responsible to create `ExecutionHook` and
-wait for the hooks to be ran on all Pods. The `ExecutionHook` API can be treated as a request for
-running hooks.
-
-*References*
-
-- [execution hook KEP link](https://github.com/kubernetes/enhancements/blob/b3554aa22f644d699e1b65a24178852134e3733d/keps/sig-storage/20190120-execution-hook-design.md)
-- https://github.com/kubernetes/enhancements/pull/705
-- https://github.com/kubernetes-sigs/execution-hook
-
-## pvc taint
-
-- *Date: 02/15/2019, v1.13, design*
-
-The proposal extends the concept of node taint/toleration to volumes: admin can taint volumes and
-only pods that tolerate specific taint can use the volumes.
-
-*References*
-
-- https://github.com/kubernetes/enhancements/pull/766
-
-## volume subpath env expansion
+## 20181029 - volume subpath env expansion
 
 - *Date: 09/28/2019, v1.15, beta*
+- *Date: 12/09/2019, v1.17, stable*
 
 Container can mount a subpath of a volume with volume mount, e.g.
 
@@ -168,11 +81,224 @@ expanded using the container's environment, e.g.
 
 *References*
 
-- [volume subpath env expansion](https://github.com/kubernetes/enhancements/blob/13a778c6a4a84dbde9e691e8dcf930a6eaa7ca51/keps/sig-storage/20181029-volume-subpath-env-expansion.md)
+- [volume subpath env expansion KEP link](https://github.com/kubernetes/enhancements/blob/13a778c6a4a84dbde9e691e8dcf930a6eaa7ca51/keps/sig-storage/20181029-volume-subpath-env-expansion.md)
+
+## 20181111 - pvc cloning (extend datasource field)
+
+- *Date: 03/30/2020, v1.18, stable*
+
+The KEP proposes add PVC clone feature into Kubernetes, i.e. creating new PVC/PV with data backed
+by a different PVC/PV. There are some limitations of the feature:
+- this feature will ONLY be available for CSI
+- the source PVC be in the same Namespace as the PVC being created
+- the source PVC be in the same StorageClass as the PVC being created
+- a safe and successful clone is the responsibility of CSI driver
+
+Following is an example. The result would be a new and independent PV/PVC (pvc-2) on the back end
+device that is a duplicate of the data that existed on pvc-1.
+
+```
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+    name: pvc-2
+    namespace: myns
+spec:
+  capacity:
+    storage: 10Gi
+  dataSource:
+    kind: PersistentVolumeClaim
+    name: pvc-1
+```
+
+Implementation-wise, PVC clone will inherit design from PVC snapshot, i.e.
+
+```go
+type PersistentVolumeClaimSpec struct {
+    ...
+    // This field can be used to specify either:
+    // * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot - Beta)
+    // * An existing PVC (PersistentVolumeClaim)
+    // * An existing custom resource/object that implements data population (Alpha)
+    // In order to use VolumeSnapshot object types, the appropriate feature gate
+    // must be enabled (VolumeSnapshotDataSource or AnyVolumeDataSource)
+    // If the provisioner or an external controller can support the specified data source,
+    // it will create a new volume based on the contents of the specified data source.
+    // If the specified data source is not supported, the volume will
+    // not be created and the failure will be reported as an event.
+    // In the future, we plan to support more data source types and the behavior
+    // of the provisioner may change.
+    // +optional
+    DataSource *TypedLocalObjectReference
+}
+```
+
+*References*
+
+- [extend-datasource-field KEP link](https://github.com/kubernetes/enhancements/blob/000b16193b2e9833cd21884e58aaa05a03f11ef6/keps/sig-storage/20181111-extend-datasource-field.md)
+
+## 20190408 - volume scheduling limits
+
+- *Date: 04/01/2020, v1.18, stable*
+
+The KEP adds support for dynamically setting volume count limit on each node, that is, the number
+of volumes that can be attached onto a node. Previously,
+- the number is hardcoded into Kubernetes source code
+- the number is cluster-wide per each volume type, meaning all nodes share the same limit
+- only certain in-tree volume plugin has corresponding scheduler predicates, namely, AWS (MaxEBSVolumeCount), GCE(MaxGCEPDVolumeCount), Azure (MaxAzureDiskVolumeCount) and OpenStack (MaxCinderVolumeCount)
+
+To simply put, the KEP proposes the following design:
+- The number of volume limit is added to `CSINode` object, a built-in API object of Kubernetes.
+- Scheduler will respect the `CSINode.spec.driver[xyz].allocatable` during scheduling, just like
+  cpu, memory, etc. For compatibility, scheduler will read `Node.status.allocatable` and
+  `Node.status.capacity` if `CSINode` is not available.
+
+Following is an example CSINode object:
+
+```yaml
+apiVersion: storage.k8s.io/v1beta1
+kind: CSINode
+metadata:
+  name: ip-172-18-4-112.ec2.internal
+spec:
+  drivers:
+    - name: ebs.csi.aws.com
+      # Already existing fields
+      nodeID: ip-172-18-4-112.ec2.internal
+      topologyKeys:
+         # ...
+      # New API:
+      allocatable:
+        # AWS node can attach max. 40 volumes, 1 is reserved for the system
+        count: 39
+    - name: org.kernel.nfs
+      allocatable:
+        # NFS does not impose any limits of volumes mounted to the node
+        count:    # nil means "no limit"
+```
+
+There are limitations/caveats in this KEP:
+- Reservation of volume count should be done in CSI driver, not in kubelet (`--system-reserved`) or scheduler
+- No cluster autoscaler integration for volume count limit
+
+*References*
+
+- [volume scheduling limits KEP link](https://github.com/kubernetes/enhancements/blob/1bad2ecb356323429a6ac050f106af4e1e803297/keps/sig-storage/20190408-volume-scheduling-limits.md)
+
+## 20190120 - execution hook
+
+- *Date: 02/13/2019, v1.13, design*
+- *Date: 06/29/2019, v1.15, design*
+- *Date: 03/31/2020, v1.18, design*
+
+*Update on 06/29/2019, v1.15*
+
+The KEP introduces APIs (ExecutionHook and HookAction) for dynamically executing user's commands in
+a pod/container or a group of pods/containers and a controller (ExecutionHookController) to manage
+the hook lifecycle. ExecutionHook provides a general mechanism for users to trigger hook commands in
+their containers for their different use cases.
+
+Unlike Pod lifecycle hook, the execution hook is not tied to the start or termination time of the
+container: it can be triggered on demand (via creating execution hook) by callers (users or controllers)
+and the status will be updated dynamically.
+
+> The Create event of ExecutionHook will trigger the hook controller to run HookAction command. The
+> status will be updated once it is available by controller. It is the caller's (user or controller)
+> responsibility to delete the hook once the execution finishes (either succeeded or failed).
+> Otherwise, ExecutionHook controller will garbage collect them after a certain amount of time.
+
+Note the initial proposal added fields to Pod spec directly, but was then changed to introduce two
+new API objects: `ExecutionHook` and `HookAction`, which can maximize reusability.
+
+Following is example objects:
+
+```yaml
+apiVersion: apps.k8s.io/v1alpha1
+kind: HookAction
+metadata:
+  name: action-demo
+Action:
+  exec:
+    command: [“run_quiesce.sh”]
+  actionTimeoutSeconds: 10
+---
+apiVersion: apps.k8s.io/v1alpha1
+kind: ExecutionHook
+metadata:
+  name: hook-demo
+spec:
+  podContainerNamesList:
+    -podName: myPod1
+      -containerName: myContainer1
+      -containerName: myContainer2
+    -podName: myPod2
+      -containerName: myContainer3
+      -containerName: myContainer4
+  hookActionName: action-demo
+```
+
+A new `Execution Controller` component is added which watches the `ExecutionHook` API object and
+take actions based on the object status and also update the status. Before graduation to stable,
+execution controller will run these commands, but it's not safe so there is plan to run commands
+in kubelet.
+
+External controller, e.g. snapshot controller, will be responsible to create `ExecutionHook` and
+wait for the hooks to be ran on all Pods. The `ExecutionHook` API can be treated as a request for
+running hooks.
+
+*Original design on 02/13/2019, v1.13*
+
+The KEP introduces ExecutionHook inside of container, which should be executed by different external
+controllers upon taking necessary actions, e.g. following is an example Pod spec. Each hook has a
+type definition: external controller should proactively watch and execute the hook if the pod has
+specific types that it cares about.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hook-demo
+spec:
+  containers:
+  - name: demo-container
+    image: mysql
+    executionHooks:
+      - name: freeze
+        type: Freeze
+        exec:
+          command: [“run_quiesce.sh”]
+        timeoutSeconds: 30
+      - name: thaw
+        type: Thaw
+        exec:
+          command: [“run_unquiesce.sh”]
+        timeoutSeconds: 30
+```
+
+The proposal is introduced for volume snapshot support to ensure consistent snapshot, but can also
+extend to other use cases. In particular, two types are defined: `Freeze` and `Thaw`. Snapshot
+controller will look up the hooks before/after taking a snapshot and execute them accordingly.
+
+*References*
+
+- [execution hook KEP link](https://github.com/kubernetes/enhancements/blob/b3554aa22f644d699e1b65a24178852134e3733d/keps/sig-storage/20190120-execution-hook-design.md)
+- https://github.com/kubernetes/enhancements/pull/705
+- https://github.com/kubernetes-sigs/execution-hook
+
+## (closed) pvc taint
+
+- *Date: 02/15/2019, v1.13, design*
+
+The KEP extends the concept of node taint/toleration to volumes: admin can taint volumes and
+only pods that tolerate specific taint can use the volumes.
+
+*References*
+
+- https://github.com/kubernetes/enhancements/pull/766
 
 # Feature & Design
 
-## volume provisioning and storageclass
+## (large) volume provisioning and storageclass
 
 - *Date: 10/13/2016, v1.4, design*
 - *Date: 06/24/2018, v1.10, stable*
@@ -214,252 +340,12 @@ If volume scheduling is enabled, dynamic provisioning is done in scheduler rathe
 - http://blog.kubernetes.io/2017/03/dynamic-provisioning-and-storage-classes-kubernetes.html
 - https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/
 
-## configurable volume provisioning
-
-- *Date: 07/16/2017, v1.7, design*
-- *Date: 02/28/2018, v1.9, closed*
-
-With storage class, user can request a specific storage class, and a dynamic provisioner can create
-persistent volume of that storage class on the fly for the user. However, there's little control
-from the user about the attributes of the new volume; also, amdin has to configure a lot of parameters
-which can be tedious (e.g. create a lot of storage class for different type of volumes).
-
-Configurable volum provisioning aims to solve the problem. The proposal also removes the restriction
-in the initial volume provisioning proposal where `claim.Spec.Selector` and `claim.Spec.Class` are
-mutually exclusive. Below is an example from the proposal.
-
-```yaml
-apiVersion: storage.k8s.io/v1beta1
-kind: StorageClass
-metadata:
-  name: slow
-provisioner: kubernetes.io/aws-ebs
-parameters:
-  type: gp2
-  zones: us-east-1a, us-east-1b, us-east-1c, us-east-2a, us-east-2b, us-east-2c
-selectorOptions:
-  - key: failure-domain.beta.kubernetes.io/zone
-    allowedValues:
-      - us-east-1a
-      - us-east-1b
-      - us-east-1c
-      - us-east-2a
-      - us-east-2b
-      - us-east-2c
-    description: "Requested AWS availability zone"
-  - key: encryption.beta.kubernetes.io/enabled
-    defaultValue: "false"
-    allowedValues:
-      - "true"
-      - "false"
-    description: "Request volume encryption"
-  - key: encryption.beta.kubernetes.io/key-id
-    description: "ID of AWS encryption key"
----
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: myclaim
-spec:
-  class: slow
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1500Mi
-  selector:
-    matchLabels:
-      encryption.beta.kubernetes.io/enabled: "false"
-    matchExpressions:
-      - key: failure-domain.beta.kubernetes.io/zone
-        operator: In
-        values:
-          - us-east-1a
-          - us-east-1b
-          - us-east-1c
-```
-
-Note this proposal is closed due to lack of feature leader.
-
-*References*
-
-- https://github.com/kubernetes/community/pull/247
-- https://github.com/kubernetes/features/issues/244
-
-## volume propagation, hostpath
-
-- *Date: 05/23/2017, v1.6, design*
-- *Date: 03/07/2018, v1.10, beta*
-
-From proposal introduction:
-> A proposal to add support for propagation mode in HostPath volume, which allows mounts within
-> containers to visible outside the container and mounts after pods creation visible to containers.
-
-What this means is that when user creates a priviledged pod with Hostpath volume, kubelet will make
-it a shared mount. For example:
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: hostpath
-spec:
-  containers:
-    - name: hostpath
-      image: nginx:1.13
-      securityContext:
-        privileged: true
-      volumeMounts:
-        - mountPath: "/data"
-          name: hostpath
-  volumes:
-    - name: hostpath
-      hostPath:
-        path: "/tmp/path"
-```
-
-If we create this privileged pod, then when kubelet mounts this directory, it will make `/data` a
-shared bind mount, e.g. inside the container, we'll see:
-
-```console
-root@hostpath:/# mountpoint /data
-/data is a mountpoint
-
-root@hostpath:/# findmnt -o TARGET,PROPAGATION /data/
-TARGET PROPAGATION
-/data  shared
-```
-
-Under the hood, kubelet just mounts using docker `:rshared` option, i.e.
-
-```console
-$ docker run -itd --privileged -v /tmp/path:/data:rshared nginx:1.13
-```
-
-Now inside the container, when we do mount under `/data`, we'll be able to see the content from
-host, i.e.
-
-```console
-### From CONTAINER
-root@5aa789be9d63:/# mount --bind /etc /data/etc
-root@5aa789be9d63:/# ls /data/etc
-adduser.conf            environment  init.d         logrotate.d    pam.d      rc5.d        shadow-
-alternatives            fonts        iproute2       mke2fs.conf    passwd     rc6.d        shells
-apt                     fstab        issue          motd           passwd-    rcS.d        skel
-bash.bashrc             gai.conf     issue.net      mtab           profile    resolv.conf  staff-group-for-usr-local
-bindresvport.blacklist  group        kernel         network        profile.d  rmt          subgid
-cron.daily              group-       ld.so.cache    networks       protocols  rpc          subuid
-debconf.conf            gshadow      ld.so.conf     nginx          rc0.d      securetty    systemd
-debian_version          gshadow-     ld.so.conf.d   nsswitch.conf  rc1.d      security     terminfo
-default                 host.conf    libaudit.conf  opt            rc2.d      selinux      timezone
-deluser.conf            hostname     localtime      os-release     rc3.d      services     ucf.conf
-dpkg                    hosts        login.defs     pam.conf       rc4.d      shadow       update-motd.d
-
-### From HOST
-$ ls /tmp/path/etc
-adduser.conf            environment  init.d         logrotate.d    pam.d      rc5.d        shadow-
-alternatives            fonts        iproute2       mke2fs.conf    passwd     rc6.d        shells
-apt                     fstab        issue          motd           passwd-    rcS.d        skel
-bash.bashrc             gai.conf     issue.net      mtab           profile    resolv.conf  staff-group-for-usr-local
-bindresvport.blacklist  group        kernel         network        profile.d  rmt          subgid
-cron.daily              group-       ld.so.cache    networks       protocols  rpc          subuid
-debconf.conf            gshadow      ld.so.conf     nginx          rc0.d      securetty    systemd
-debian_version          gshadow-     ld.so.conf.d   nsswitch.conf  rc1.d      security     terminfo
-default                 host.conf    libaudit.conf  opt            rc2.d      selinux      timezone
-deluser.conf            hostname     localtime      os-release     rc3.d      services     ucf.conf
-dpkg                    hosts        login.defs     pam.conf       rc4.d      shadow       update-motd.d
-```
-
-*Update on 06/21/2017, v1.6, design*
-
-The above proposal has a problem: it makes too many hostPath shared mounts. In reality, user may
-just want only one hostPath to be shared mount, and leave all other hostPath untouched. Futher, for
-component like kubelet, you can't simply make mount like `/etc` shared, since that will shadow host'
-`/etc`.
-
-The API was later changed to a `mountPropagation` field in Container.volumeMounts, with values:
-None, HostToContainer and Bidirectional.
-
-*Update on 03/07/2018, v1.10, beta*
-
-Mount namespace propagation is promoted to beta. This feature allows a container to mount a volume
-as rslave so that host mounts can be seen inside the container, or as rshared so that any mounts
-from inside the container are reflected in the host's mount namespace. The default for this feature
-is rslave. Note the API follows previous changed design, i.e. a `mountPropagation` field in
-Container.volumeMounts.
-
-*References*
-
-- [propagation design doc](https://github.com/kubernetes/community/blob/b7c4abc6fdb962785654ca50c26dc982bf87ea04/contributors/design-proposals/propagation.md)
-- [updated propagation design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/node/propagation.md)
-- [volume mount propagation concept](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation)
-- https://medium.com/kokster/kubernetes-mount-propagation-5306c36a4a2d
-- https://github.com/kubernetes/community/pull/659
-
-## volume hostpath qualifiers
-
-*Date: 06/07/2017, v1.6*
-
-This is to solve the problem where if using host path in a pod and the host path doesn't exist,
-docker will create the path. However, we might want more semantics, e.g. fail the pod if the path
-doesn't exist, fail the pod if it exists but is not a block device, etc. The problem this proposal
-is trying to solve is simple to understand, but pay attention to how it articulates various options
-and concerns.
-
-*References*
-
-- [volume hostpath qualifiers desing doc](https://github.com/kubernetes/community/blob/3853b8d5bcc42314c446620eba42c6e9b9c3ac41/contributors/design-proposals/volume-hostpath-qualifiers.md)
-
-## volume mount options
-
-*Date: 06/24/2018, v1.10, stable*
-
-The proposal allows PV to specify mount options, which will be used by kubelet (for in-tree
-plugins) to mount volume:
-
-```
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: pv0003
-spec:
-  capacity:
-    storage: 5Gi
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Recycle
-  mountOptions:
-    - hard
-    - nolock
-    - nfsvers=3
-  nfs:
-    path: /tmp
-    server: 172.17.0.2
-```
-
-One can also add mount option in StorageClass and the options will be added to dynamically
-provisioned persistent volume:
-
-```
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: slow
-provisioner: kubernetes.io/glusterfs
-parameters:
-  type: gp2
-  mountOptions: "auto_mount"
-```
-
-While mount options enable more flexibility in how volumes are mounted, it can result in user
-specifying options that are not supported or are known to be problematic when using inline volume
-specs. Thus mountOptions as an API parameter will not be supported for inline volume specs.
-
-## volume snapshot
+## (large) volume snapshot
 
 - *Date: 06/16/2017, v1.7, design*
 - *Date: 06/23/2018, v1.x, design*
 - *Date: 10/04/2018, v1.12, alpha*
+- *Date: 12/09/2019, v1.17, beta*
 
 The volume snapshot provides an API for users to issue snapshot request; all real snapshots operations
 are done in plugins. There are two components here: a controller and a provisioner. The controllers
@@ -498,42 +384,197 @@ VolumeSnapshotData is not. The overall workflow is:
 - [volume snapshotting design doc](https://github.com/kubernetes-incubator/external-storage/blob/c0eb404503535ae313eb0acfcf9d14716333fbce/snapshot/doc/volume-snapshotting-proposal.md)
 - [volume snapshot user guide](https://github.com/kubernetes-incubator/external-storage/blob/c0eb404503535ae313eb0acfcf9d14716333fbce/snapshot/doc/user-guide.md)
 - [volume snapshot example](https://github.com/kubernetes-incubator/external-storage/blob/c0eb404503535ae313eb0acfcf9d14716333fbce/snapshot/doc/examples/hostpath/README.md)
+- https://github.com/kubernetes/enhancements/issues/177
 - https://kubernetes.io/blog/2018/10/09/introducing-volume-snapshot-alpha-for-kubernetes/
 - https://kubernetes.io/blog/2019/01/17/update-on-volume-snapshot-alpha-for-kubernetes/
 - https://github.com/kubernetes-incubator/external-storage/pull/197
 - https://github.com/rootfs/snapshot
 
-## containerized mounter pod
+## (large) volume topology-aware scheduling
 
-- *Date: 05/23/2017, v1.6, design*
-- *Date: 06/24/2018, v1.10, design*
+- *Date: 06/23/2018, v1.10, beta*
 
-Note this is not merged as of writing. The goal of this proposal is to allow kubernetes to
-`provision/attach/mount/unmount/detach/delete` volumes in pod instead of on the host. For example,
-currently, to mount a glusterfs volumes, we do all the setup on host (kubelet mounts everything);
-but in certain os, such tools are not available.
+This feature enables you to specify topology constraints on PersistentVolumes and have those
+constraints evaluated by the scheduler. It also delays the initial PersistentVolumeClaim binding
+until the Pod has been scheduled so that the volume binding decision is smarter and considers all
+Pod scheduling constraints as well.
 
-The proposal aims to address this to allow pod to do all the work; so it is not a requirement to
-have `mout.glusterfs` utility on host; rather, a daemonset pod contains the utility and will be
-called via kubelet when mount/unmount, etc. For this to work properly, daemonset pod must be ran in
-privileged mode, and certain directories (notably `/var/lib/kubelet`) must have 'shared' mount
-propagation.
+At the moment, this feature is most useful for local persistent volumes, but support for dynamic
+provisioning is under development. This volume topology aware scheduling design is used mostly to
+complement local storage, to make scheduler aware of volume topology; previously, PV&PVC
+binding/unbinding is independent of scheduler.
+
+Following is a rough summary:
+- PersistentVolume object will be extended with a new `NodeAffinity` field of type `VolumeNodeAffinity`
+  that specifies the constraints. It will closely mirror the existing NodeAffinity type used by
+  Pods, but we will use a new type so that we will not be bound by existing and future Pod
+  `NodeAffinity` semantics.
+- A new StorageClass field `BindingMode` will be added to control the volume binding behavior.
+  Available modes are `Immediate` and `WaitForFirstConsumer`. StorageClass will be required to get
+  the new binding behavior, even if dynamic provisioning is not used (in the case of local storage).
+  For the new behavior `WaitForFirstConsumer`, both binding decisions of:
+  - Selecting a precreated PV with NodeAffinity
+  - Dynamically provisioning a PV with NodeAffinity
+  will be considered by the scheduler, so that all of a Pod's scheduling constraints can be evaluated
+  at once, i.e. both binding and provisioning will be delayed.
+- Bound PVC enforcement will be done in scheduler predicate as well as kubelet admission.
+- To make dynamic provisioning aware of pod scheduling decisions, delayed volume binding must also
+  be enabled. The scheduler will pass its selected node to the dynamic provisioner, and the provisioner
+  will create a volume in the topology domain that the selected node is part of. The selected node is
+  passed in via annotation 'annSelectedNode'.
+- For the common use case, volumes will be provisioned in whatever topology domain the scheduler has
+  decided is best to run the workload. Users may impose further restrictions by setting label/node
+  selectors, and pod affinity/anti-affinity policies on their Pods. All those policies will be taken
+  into account when dynamically provisioning a volume. While less common, administrators may want to
+  further restrict what topology domains are available to a StorageClass. To support these administrator
+  policies, an `AllowedTopology` field can also be specified in the StorageClass to restrict the
+  topology domains for dynamic provisioning.
+- There are no plans to bind multiple PVCs in one transaction. Since the scheduler is serialized, a
+  partial binding failure should be a rare occurrence and would only be caused if there is a user or
+  other external entity also trying to bind the same volumes.
+
+Following is comment from scheduler_binder.go:
+```go
+// SchedulerVolumeBinder is used by the scheduler to handle PVC/PV binding
+// and dynamic provisioning.  The binding decisions are integrated into the pod scheduling
+// workflow so that the PV NodeAffinity is also considered along with the pod's other
+// scheduling requirements.
+//
+// This integrates into the existing default scheduler workflow as follows:
+// 1. The scheduler takes a Pod off the scheduler queue and processes it serially:
+//    a. Invokes all predicate functions, parallelized across nodes.  FindPodVolumes() is invoked here.
+//    b. Invokes all priority functions.  Future/TBD
+//    c. Selects the best node for the Pod.
+//    d. Cache the node selection for the Pod. (Assume phase)
+//       i.  If PVC binding is required, cache in-memory only:
+//           * Updated PV objects for prebinding to the corresponding PVCs.
+//           * For the pod, which PVs need API updates.
+//           AssumePodVolumes() is invoked here.  Then BindPodVolumes() is called asynchronously by the
+//           scheduler.  After BindPodVolumes() is complete, the Pod is added back to the scheduler queue
+//           to be processed again until all PVCs are bound.
+//       ii. If PVC binding is not required, cache the Pod->Node binding in the scheduler's pod cache,
+//           and asynchronously bind the Pod to the Node.  This is handled in the scheduler and not here.
+// 2. Once the assume operation is done, the scheduler processes the next Pod in the scheduler queue
+//    while the actual binding operation occurs in the background.
+```
 
 *References*
 
-- [containerized mounter pod design doc](https://github.com/kubernetes/community/blob/eb4ec5c9c3d978eded6a3a303c69b8e002c085a2/contributors/design-proposals/storage/containerized-mounter-pod.md)
-- https://github.com/kubernetes/community/pull/589
+- [volume topology scheduling design doc](https://github.com/kubernetes/community/blob/e208e4dc74e690ea9c7d82cb67acece5f1f665fc/contributors/design-proposals/storage/volume-topology-scheduling.md)
 
-*Update on 06/24/2018, v1.10, design*
+## (large) csi volume plugin
 
-NOTE: As we expect that most volume plugins are going to be moved to CSI soon, all implementation of
-this proposal will be guarded by alpha feature gate `MountContainers` which is never going leave
-alpha. Whole implementation of this proposal is going to be removed when the plugins are fully moved
-to CSI. With CSI, all mount/umount operations are handled in CSI driver.
+- *Date: 02/28/2018, v1.9, alpha*
+- *Date: 03/07/2018, v1.10, beta*
+- *Date: 05/08/2019, v1.13, stable*
 
-## local volume management
+**Architecture**
 
-*Date: 05/12/2017, v1.6*
+Below is a reference architecture suggested by Kubernetes team; the actual architecture or deployment
+strategy depends on admin. For example, in an extreme case, a single node cluster, all components can
+ben ran in a single pod.
+- A statefulset of size `1` with csi driver (from vendor), external provisioner (from kubernetes team)
+  and external attacher (from kubernetes team). The three containers run in a Pod, and external
+  provisioner/attacher communicate with the csi driver via unix socket, which is defined in csi
+  specification. The socket can be mounted as hostpath or emptydir. All in all, the statefulset
+  facilitates communication with the Kubernetes controllers, and is tasked to provision and attach
+  volumes of respective driver.
+- A deamonset with csi driver (from vendor), kubernetes csi helper (from kubernetes team). The
+  daemonset facilitates communication with Kubelet.
+- Kubelet runs on every node and is responsible for making csi calls, i.e. `NodePublishVolume` and
+  `NodeUnpublishVolume`. Kubelet directly makes the call to csi driver; the driver is registered
+  from csi helper, i.e. put a socket under a well-known path for kubelet to discover.
+
+*References*
+
+- [kubernetes container storage interface design doc](https://github.com/kubernetes/community/blob/9905391eee5ccc0afccd01001fc0abd2e70a4ca6/contributors/design-proposals/storage/container-storage-interface.md)
+
+**Workflow**
+
+For a complete workflow, see [walkthrough section in design doc](https://github.com/kubernetes/community/blob/9905391eee5ccc0afccd01001fc0abd2e70a4ca6/contributors/design-proposals/storage/container-storage-interface.md#example-walkthrough)
+
+**Component: external provisioner**
+
+[csi external provisioner](https://github.com/kubernetes-csi/external-provisioner) is a sidecar
+container that watches Kubernetes PersistentVolumeClaim objects and triggers CreateVolume/DeleteVolume
+against a CSI endpoint. It is basically a bridge between Kubernetes API and csi API, i.e. from
+`PV, PVC, SC` to `CreateVolume, DeleteVolume` call.
+
+The external provisioner container runs in a statefulset, which also contains a csi driver container.
+
+**Component: external attacher**
+
+[csi external attacher](https://github.com/kubernetes-csi/external-attacher) is a sidecar container
+that watches the new Kubernetes `VolumeAttachment` objects and triggers ControllerPublish/Unpublish
+against a CSI endpoint. It is basically a bridge between Kubernetes API and csi API, i.e. from
+`PV, Node, VA` to `Attach/Detach` call. The
+
+VolumeAttachment is created/deleted via Kubelet in-tree csi volume plugin. Attacher is much more
+complex than provisioner; it deals with concurrency and has more API calls to csi to find volume
+capabilities. Note, even though this is called the external attacher, its function is to call the
+CSI API calls ControllerPublish and ControllerUnpublish. These calls most likely will occur in a
+node which is not the one that will mount the volume. For this reason, many CSI drivers do not
+support these calls, instead doing the attach/detach and mount/unmount both in the CSI NodePublish
+and NodeUnpublish calls done by the kubelet at the node which is supposed to mount.
+
+**Component: node driver registrar**
+
+[csi driver registrar](https://github.com/kubernetes-csi/driver-registrar) is a sidecar container that
+- registers the CSI driver with kubelet
+- adds the drivers custom NodeId to a label on the Kubernetes Node API Object.
+
+For alpha, kubelet locates driver at `/var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.sock`.
+The mechanism is mentioned in [kubelet-to-csi-driver-communication section](https://github.com/kubernetes/community/blob/9905391eee5ccc0afccd01001fc0abd2e70a4ca6/contributors/design-proposals/storage/container-storage-interface.md#kubelet-to-csi-driver-communication).
+
+**Component: cluster driver registrar**
+
+[Cluster driver registrar](https://github.com/kubernetes-csi/cluster-driver-registrar) is a new
+component since kubernetes version >1.10. It is a sidecar container that registers a CSI Driver with
+a Kubernetes cluster by creating a `CSIDriver` Object which enables the driver to customize how
+Kubernetes interacts with it.
+
+The [CSIDriver](https://kubernetes-csi.github.io/docs/csi-driver-object.html) Kubernetes API object
+serves two purposes:
+- Simplify driver discovery, i.e. allow users to easily find what CSI drivers are available in the cluster
+- Customizing Kubernetes behavior, e.g. if additional information is needed to pass into the CSI driver
+
+The scope of the component is under discussion:
+- whether it's necessary to run a long-running container to create relatively static object
+- allowing a component to self-register object might have security issues
+
+**Related CSI calls**
+
+- CreateVolume/DeleteVolume: This RPC will be called by Kubernetes to provision a new volume on
+  behalf of a user (to be consumed as either a block device or a mounted filesystem). DeleteVolume
+  is a reverse of CreateVolume.
+- ControllerPublishVolume/ControllerUnPublishVolume: Think of attach/detach. ControllerPublishVolume
+  RPC will be called by Kubernetes when it wants to place a workload that uses the volume onto a
+  node. The Plugin SHOULD perform the work that is necessary for making the volume available on the
+  given node. The Plugin MUST NOT assume that this RPC will be executed on the node where the volume
+  will be used. ControllerUnPublishVolume RPC is a reverse of ControllerPublishVolume.
+- NodePublishVolume/NodeUnpublishVolume: Think of mount/umount. NodePublishVolume is called by
+  Kubernetes when a workload that wants to use the specified volume is placed (scheduled) on a node.
+  The Plugin SHALL assume that this RPC will be executed on the node where the volume will be used.
+  NodePublishVolumeRequest contains a `target_path` at where the Plugin MUST make the volume
+  available. NodeUnPublishVolume RPC is a reverse of NodePublishVolume.
+
+*Update on 05/08/2019, v1.13, stable*
+
+Two Kubernetes API objects are proposed in newer versions, i.e. CSIDriver and CSINode.
+
+- `CSIDriver` is a per-driver object, see above cluster driver registrar section.
+- `CSINode` saves node specific information. Instead of storing such information in the Kubernetes
+  Node API Object, a new CSI specific Kubernetes CSINode object was created.
+
+*References*
+
+- https://github.com/kubernetes-csi
+- https://kubernetes-csi.github.io
+- http://blog.kubernetes.io/2018/01/introducing-container-storage-interface.html
+
+## (large) local volume management
+
+- *Date: 05/12/2017, v1.6*
 
 **Proposal**
 
@@ -588,7 +629,7 @@ proposals.
 - https://github.com/kubernetes/kubernetes/issues/30799
 - https://github.com/kubernetes/kubernetes/issues/7562
 
-## local storage capacity isolation
+## (medium) local storage capacity isolation
 
 - *Date: 05/23/2017, v1.6, design*
 - *Date: 03/07/2018, v1.10, beta*
@@ -724,7 +765,7 @@ allocatable ephemeral storage, pod will stay pending. Kubelet checks three resou
   - for shared partition, this is logs, emptydir and container rootfs
   - for separate partition, this is logs and emptydir
 
-## local persistent volume
+## (medium) local persistent volume
 
 - *Date: 05/23/2017, v1.6, design*
 - *Date: 06/23/2018, v1.10, beta*
@@ -738,7 +779,117 @@ distributed filesystems and databases, caching, etc.
 - [local persistent volume design doc](https://github.com/kubernetes/community/blob/eb4ec5c9c3d978eded6a3a303c69b8e002c085a2/contributors/design-proposals/storage/local-storage-pv.md)
 - https://kubernetes.io/blog/2019/04/04/kubernetes-1.14-local-persistent-volumes-ga/
 
-## raw block consumption in kubernetes
+## (medium) volume propagation, hostpath
+
+- *Date: 05/23/2017, v1.6, design*
+- *Date: 03/07/2018, v1.10, beta*
+
+From proposal introduction:
+> A proposal to add support for propagation mode in HostPath volume, which allows mounts within
+> containers to visible outside the container and mounts after pods creation visible to containers.
+
+What this means is that when user creates a priviledged pod with Hostpath volume, kubelet will make
+it a shared mount. For example:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hostpath
+spec:
+  containers:
+    - name: hostpath
+      image: nginx:1.13
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - mountPath: "/data"
+          name: hostpath
+  volumes:
+    - name: hostpath
+      hostPath:
+        path: "/tmp/path"
+```
+
+If we create this privileged pod, then when kubelet mounts this directory, it will make `/data` a
+shared bind mount, e.g. inside the container, we'll see:
+
+```console
+root@hostpath:/# mountpoint /data
+/data is a mountpoint
+
+root@hostpath:/# findmnt -o TARGET,PROPAGATION /data/
+TARGET PROPAGATION
+/data  shared
+```
+
+Under the hood, kubelet just mounts using docker `:rshared` option, i.e.
+
+```console
+$ docker run -itd --privileged -v /tmp/path:/data:rshared nginx:1.13
+```
+
+Now inside the container, when we do mount under `/data`, we'll be able to see the content from
+host, i.e.
+
+```console
+### From CONTAINER
+root@5aa789be9d63:/# mount --bind /etc /data/etc
+root@5aa789be9d63:/# ls /data/etc
+adduser.conf            environment  init.d         logrotate.d    pam.d      rc5.d        shadow-
+alternatives            fonts        iproute2       mke2fs.conf    passwd     rc6.d        shells
+apt                     fstab        issue          motd           passwd-    rcS.d        skel
+bash.bashrc             gai.conf     issue.net      mtab           profile    resolv.conf  staff-group-for-usr-local
+bindresvport.blacklist  group        kernel         network        profile.d  rmt          subgid
+cron.daily              group-       ld.so.cache    networks       protocols  rpc          subuid
+debconf.conf            gshadow      ld.so.conf     nginx          rc0.d      securetty    systemd
+debian_version          gshadow-     ld.so.conf.d   nsswitch.conf  rc1.d      security     terminfo
+default                 host.conf    libaudit.conf  opt            rc2.d      selinux      timezone
+deluser.conf            hostname     localtime      os-release     rc3.d      services     ucf.conf
+dpkg                    hosts        login.defs     pam.conf       rc4.d      shadow       update-motd.d
+
+### From HOST
+$ ls /tmp/path/etc
+adduser.conf            environment  init.d         logrotate.d    pam.d      rc5.d        shadow-
+alternatives            fonts        iproute2       mke2fs.conf    passwd     rc6.d        shells
+apt                     fstab        issue          motd           passwd-    rcS.d        skel
+bash.bashrc             gai.conf     issue.net      mtab           profile    resolv.conf  staff-group-for-usr-local
+bindresvport.blacklist  group        kernel         network        profile.d  rmt          subgid
+cron.daily              group-       ld.so.cache    networks       protocols  rpc          subuid
+debconf.conf            gshadow      ld.so.conf     nginx          rc0.d      securetty    systemd
+debian_version          gshadow-     ld.so.conf.d   nsswitch.conf  rc1.d      security     terminfo
+default                 host.conf    libaudit.conf  opt            rc2.d      selinux      timezone
+deluser.conf            hostname     localtime      os-release     rc3.d      services     ucf.conf
+dpkg                    hosts        login.defs     pam.conf       rc4.d      shadow       update-motd.d
+```
+
+*Update on 06/21/2017, v1.6, design*
+
+The above proposal has a problem: it makes too many hostPath shared mounts. In reality, user may
+just want only one hostPath to be shared mount, and leave all other hostPath untouched. Futher, for
+component like kubelet, you can't simply make mount like `/etc` shared, since that will shadow host'
+`/etc`.
+
+The API was later changed to a `mountPropagation` field in Container.volumeMounts, with values:
+None, HostToContainer and Bidirectional.
+
+*Update on 03/07/2018, v1.10, beta*
+
+Mount namespace propagation is promoted to beta. This feature allows a container to mount a volume
+as rslave so that host mounts can be seen inside the container, or as rshared so that any mounts
+from inside the container are reflected in the host's mount namespace. The default for this feature
+is rslave. Note the API follows previous changed design, i.e. a `mountPropagation` field in
+Container.volumeMounts.
+
+*References*
+
+- [propagation design doc](https://github.com/kubernetes/community/blob/b7c4abc6fdb962785654ca50c26dc982bf87ea04/contributors/design-proposals/propagation.md)
+- [updated propagation design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/node/propagation.md)
+- [volume mount propagation concept](https://kubernetes.io/docs/concepts/storage/volumes/#mount-propagation)
+- https://medium.com/kokster/kubernetes-mount-propagation-5306c36a4a2d
+- https://github.com/kubernetes/community/pull/659
+
+## (medium) raw block consumption in kubernetes
 
 - *Date: 07/01/2018, v1.11, alpha*
 - *Date: 03/07/2019, v1.13, beta*
@@ -802,79 +953,7 @@ Volume path: `/var/lib/kubelet/pods/{podUID}/volumeDevices/{escapeQualifiedPlugi
 - https://github.com/kubernetes/features/issues/351
 - https://kubernetes.io/blog/2019/03/07/raw-block-volume-support-to-beta/
 
-## volume topology-aware scheduling
-
-- *Date: 06/23/2018, v1.10, beta*
-
-This feature enables you to specify topology constraints on PersistentVolumes and have those
-constraints evaluated by the scheduler. It also delays the initial PersistentVolumeClaim binding
-until the Pod has been scheduled so that the volume binding decision is smarter and considers all
-Pod scheduling constraints as well.
-
-At the moment, this feature is most useful for local persistent volumes, but support for dynamic
-provisioning is under development. This volume topology aware scheduling design is used mostly to
-complement local storage, to make scheduler aware of volume topology; previously, PV&PVC
-binding/unbinding is independent of scheduler.
-
-Following is a rough summary:
-- PersistentVolume object will be extended with a new `NodeAffinity` field of type `VolumeNodeAffinity`
-  that specifies the constraints. It will closely mirror the existing NodeAffinity type used by
-  Pods, but we will use a new type so that we will not be bound by existing and future Pod
-  `NodeAffinity` semantics.
-- A new StorageClass field `BindingMode` will be added to control the volume binding behavior.
-  Available modes are `Immediate` and `WaitForFirstConsumer`. StorageClass will be required to get
-  the new binding behavior, even if dynamic provisioning is not used (in the case of local storage).
-  For the new behavior `WaitForFirstConsumer`, both binding decisions of:
-  - Selecting a precreated PV with NodeAffinity
-  - Dynamically provisioning a PV with NodeAffinity
-  will be considered by the scheduler, so that all of a Pod's scheduling constraints can be evaluated
-  at once, i.e. both binding and provisioning will be delayed.
-- Bound PVC enforcement will be done in scheduler predicate as well as kubelet admission.
-- To make dynamic provisioning aware of pod scheduling decisions, delayed volume binding must also
-  be enabled. The scheduler will pass its selected node to the dynamic provisioner, and the provisioner
-  will create a volume in the topology domain that the selected node is part of. The selected node is
-  passed in via annotation 'annSelectedNode'.
-- For the common use case, volumes will be provisioned in whatever topology domain the scheduler has
-  decided is best to run the workload. Users may impose further restrictions by setting label/node
-  selectors, and pod affinity/anti-affinity policies on their Pods. All those policies will be taken
-  into account when dynamically provisioning a volume. While less common, administrators may want to
-  further restrict what topology domains are available to a StorageClass. To support these administrator
-  policies, an `AllowedTopology` field can also be specified in the StorageClass to restrict the
-  topology domains for dynamic provisioning.
-- There are no plans to bind multiple PVCs in one transaction. Since the scheduler is serialized, a
-  partial binding failure should be a rare occurrence and would only be caused if there is a user or
-  other external entity also trying to bind the same volumes.
-
-Following is comment from scheduler_binder.go:
-```go
-// SchedulerVolumeBinder is used by the scheduler to handle PVC/PV binding
-// and dynamic provisioning.  The binding decisions are integrated into the pod scheduling
-// workflow so that the PV NodeAffinity is also considered along with the pod's other
-// scheduling requirements.
-//
-// This integrates into the existing default scheduler workflow as follows:
-// 1. The scheduler takes a Pod off the scheduler queue and processes it serially:
-//    a. Invokes all predicate functions, parallelized across nodes.  FindPodVolumes() is invoked here.
-//    b. Invokes all priority functions.  Future/TBD
-//    c. Selects the best node for the Pod.
-//    d. Cache the node selection for the Pod. (Assume phase)
-//       i.  If PVC binding is required, cache in-memory only:
-//           * Updated PV objects for prebinding to the corresponding PVCs.
-//           * For the pod, which PVs need API updates.
-//           AssumePodVolumes() is invoked here.  Then BindPodVolumes() is called asynchronously by the
-//           scheduler.  After BindPodVolumes() is complete, the Pod is added back to the scheduler queue
-//           to be processed again until all PVCs are bound.
-//       ii. If PVC binding is not required, cache the Pod->Node binding in the scheduler's pod cache,
-//           and asynchronously bind the Pod to the Node.  This is handled in the scheduler and not here.
-// 2. Once the assume operation is done, the scheduler processes the next Pod in the scheduler queue
-//    while the actual binding operation occurs in the background.
-```
-
-*References*
-
-- [volume topology scheduling design doc](https://github.com/kubernetes/community/blob/e208e4dc74e690ea9c7d82cb67acece5f1f665fc/contributors/design-proposals/storage/volume-topology-scheduling.md)
-
-## growing persistent volume
+## (medium) growing persistent volume
 
 - *Date: 07/16/2017, v1.7, design*
 - *Date: 03/07/2018, v1.10, alpha*
@@ -912,9 +991,70 @@ is online persistent volume resize, the other is flex volume resize support.
 - [grow volume size design doc](https://github.com/kubernetes/community/blob/eb4ec5c9c3d978eded6a3a303c69b8e002c085a2/contributors/design-proposals/storage/grow-volume-size.md)
 - https://kubernetes.io/blog/2018/07/12/resizing-persistent-volumes-using-kubernetes/
 
-## volume operation metrics
+## (small) volume hostpath qualifiers
 
-*Date: 03/07/2018, v1.10, stable*
+- *Date: 06/07/2017, v1.6*
+
+This is to solve the problem where if using host path in a pod and the host path doesn't exist,
+docker will create the path. However, we might want more semantics, e.g. fail the pod if the path
+doesn't exist, fail the pod if it exists but is not a block device, etc. The problem this proposal
+is trying to solve is simple to understand, but pay attention to how it articulates various options
+and concerns.
+
+From the API, a new field `Type` is added to `v1.HostPathVolumeSource`.
+
+*References*
+
+- [volume hostpath qualifiers desing doc](https://github.com/kubernetes/community/blob/3853b8d5bcc42314c446620eba42c6e9b9c3ac41/contributors/design-proposals/volume-hostpath-qualifiers.md)
+
+## (small) volume mount options
+
+- *Date: 06/24/2018, v1.10, stable*
+
+The proposal allows PV to specify mount options, which will be used by kubelet (for in-tree
+plugins) to mount volume:
+
+```
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv0003
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  mountOptions:
+    - hard
+    - nolock
+    - nfsvers=3
+  nfs:
+    path: /tmp
+    server: 172.17.0.2
+```
+
+One can also add mount option in StorageClass and the options will be added to dynamically
+provisioned persistent volume:
+
+```
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: slow
+provisioner: kubernetes.io/glusterfs
+parameters:
+  type: gp2
+  mountOptions: "auto_mount"
+```
+
+While mount options enable more flexibility in how volumes are mounted, it can result in user
+specifying options that are not supported or are known to be problematic when using inline volume
+specs. Thus mountOptions as an API parameter will not be supported for inline volume specs.
+
+## (small) volume operation metrics
+
+- *Date: 03/07/2018, v1.10, stable*
 
 Kubernetes 1.10 brings to general availability detailed metrics of what's going in inside the storage
 systems, including metrics such as mount and unmount time, number of volumes in a particular state,
@@ -928,9 +1068,9 @@ of kubelet and controller-manager.
 - [cloudprovide storage metrics](https://github.com/kubernetes/community/blob/e208e4dc74e690ea9c7d82cb67acece5f1f665fc/contributors/design-proposals/cloud-provider/cloudprovider-storage-metrics.md)
 - https://docs.google.com/document/d/1Fh0T60T_y888LsRwC51CQHO75b2IZ3A34ZQS71s_F0g
 
-## exposing storage (pv/pvc) metrics via kubelet
+## (small) exposing storage (pv/pvc) metrics via kubelet
 
-*Date: 02/09/2017, v1.7*
+- *Date: 02/09/2017, v1.7*
 
 As mentioned in 'disk accounting' section, kubelet exposes API endpoints for stats on a node, e.g.
 ```
@@ -1008,119 +1148,9 @@ Once we have the information, we can register the metrics in prometheus.
 - https://github.com/kubernetes/kubernetes/pull/51553
 - https://github.com/kubernetes/features/issues/363
 
-## csi volume plugin
+## (small) storage object in use protection
 
-- *Date: 02/28/2018, v1.9, alpha*
 - *Date: 03/07/2018, v1.10, beta*
-- *Date: 05/08/2019, v1.13, stable*
-
-**Architecture**
-
-Below is a reference architecture suggested by Kubernetes team; the actual architecture or deployment
-strategy depends on admin. For example, in an extreme case, a single node cluster, all components can
-ben ran in a single pod.
-- A statefulset of size `1` with csi driver (from vendor), external provisioner (from kubernetes team)
-  and external attacher (from kubernetes team). The three containers run in a Pod, and external
-  provisioner/attacher communicate with the csi driver via unix socket, which is defined in csi
-  specification. The socket can be mounted as hostpath or emptydir. All in all, the statefulset
-  facilitates communication with the Kubernetes controllers, and is tasked to provision and attach
-  volumes of respective driver.
-- A deamonset with csi driver (from vendor), kubernetes csi helper (from kubernetes team). The
-  daemonset facilitates communication with Kubelet.
-- Kubelet runs on every node and is responsible for making csi calls, i.e. `NodePublishVolume` and
-  `NodeUnpublishVolume`. Kubelet directly makes the call to csi driver; the driver is registered
-  from csi helper, i.e. put a socket under a well-known path for kubelet to discover.
-
-*References*
-
-- [kubernetes container storage interface design doc](https://github.com/kubernetes/community/blob/9905391eee5ccc0afccd01001fc0abd2e70a4ca6/contributors/design-proposals/storage/container-storage-interface.md)
-
-**Workflow**
-
-For a complete workflow, see [walkthrough section in design doc](https://github.com/kubernetes/community/blob/9905391eee5ccc0afccd01001fc0abd2e70a4ca6/contributors/design-proposals/storage/container-storage-interface.md#example-walkthrough)
-
-**Component: external provisioner**
-
-[csi external provisioner](https://github.com/kubernetes-csi/external-provisioner) is a sidecar
-container that watches Kubernetes PersistentVolumeClaim objects and triggers CreateVolume/DeleteVolume
-against a CSI endpoint. It is basically a bridge between Kubernetes API and csi API, i.e. from
-`PV, PVC, SC` to `CreateVolume, DeleteVolume` call.
-
-The external provisioner container runs in a statefulset, which also contains a csi driver container.
-
-**Component: external attacher**
-
-[csi external attacher](https://github.com/kubernetes-csi/external-attacher) is a sidecar container
-that watches the new Kubernetes `VolumeAttachment` objects and triggers ControllerPublish/Unpublish
-against a CSI endpoint. It is basically a bridge between Kubernetes API and csi API, i.e. from
-`PV, Node, VA` to `Attach/Detach` call. The
-
-VolumeAttachment is created/deleted via Kubelet in-tree csi volume plugin. Attacher is much more
-complex than provisioner; it deals with concurrency and has more API calls to csi to find volume
-capabilities. Note, even though this is called the external attacher, its function is to call the
-CSI API calls ControllerPublish and ControllerUnpublish. These calls most likely will occur in a
-node which is not the one that will mount the volume. For this reason, many CSI drivers do not
-support these calls, instead doing the attach/detach and mount/unmount both in the CSI NodePublish
-and NodeUnpublish calls done by the kubelet at the node which is supposed to mount.
-
-**Component: node driver registrar**
-
-[csi driver registrar](https://github.com/kubernetes-csi/driver-registrar) is a sidecar container that
-- registers the CSI driver with kubelet
-- adds the drivers custom NodeId to a label on the Kubernetes Node API Object.
-
-For alpha, kubelet locates driver at `/var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.sock`.
-The mechanism is mentioned in [kubelet-to-csi-driver-communication section](https://github.com/kubernetes/community/blob/9905391eee5ccc0afccd01001fc0abd2e70a4ca6/contributors/design-proposals/storage/container-storage-interface.md#kubelet-to-csi-driver-communication).
-
-**Component: cluster driver registrar**
-
-[Cluster driver registrar](https://github.com/kubernetes-csi/cluster-driver-registrar) is a new
-component since kubernetes version >1.10. It is a sidecar container that registers a CSI Driver with
-a Kubernetes cluster by creating a `CSIDriver` Object which enables the driver to customize how
-Kubernetes interacts with it.
-
-The [CSIDriver](https://kubernetes-csi.github.io/docs/csi-driver-object.html) Kubernetes API object
-serves two purposes:
-- Simplify driver discovery, i.e. allow users to easily find what CSI drivers are available in the cluster
-- Customizing Kubernetes behavior, e.g. if additional information is needed to pass into the CSI driver
-
-The scope of the component is under discussion:
-- whether it's necessary to run a long-running container to create relatively static object
-- allowing a component to self-register object might have security issues
-
-**Related CSI calls**
-
-- CreateVolume/DeleteVolume: This RPC will be called by Kubernetes to provision a new volume on
-  behalf of a user (to be consumed as either a block device or a mounted filesystem). DeleteVolume
-  is a reverse of CreateVolume.
-- ControllerPublishVolume/ControllerUnPublishVolume: Think of attach/detach. ControllerPublishVolume
-  RPC will be called by Kubernetes when it wants to place a workload that uses the volume onto a
-  node. The Plugin SHOULD perform the work that is necessary for making the volume available on the
-  given node. The Plugin MUST NOT assume that this RPC will be executed on the node where the volume
-  will be used. ControllerUnPublishVolume RPC is a reverse of ControllerPublishVolume.
-- NodePublishVolume/NodeUnpublishVolume: Think of mount/umount. NodePublishVolume is called by
-  Kubernetes when a workload that wants to use the specified volume is placed (scheduled) on a node.
-  The Plugin SHALL assume that this RPC will be executed on the node where the volume will be used.
-  NodePublishVolumeRequest contains a `target_path` at where the Plugin MUST make the volume
-  available. NodeUnPublishVolume RPC is a reverse of NodePublishVolume.
-
-*Update on 05/08/2019, v1.13, stable*
-
-Two Kubernetes API objects are proposed in newer versions, i.e. CSIDriver and CSINode.
-
-- `CSIDriver` is a per-driver object, see above cluster driver registrar section.
-- `CSINode` saves node specific information. Instead of storing such information in the Kubernetes
-  Node API Object, a new CSI specific Kubernetes CSINode object was created.
-
-*References*
-
-- https://github.com/kubernetes-csi
-- https://kubernetes-csi.github.io
-- http://blog.kubernetes.io/2018/01/introducing-container-storage-interface.html
-
-## storage object in use protection
-
-*Date: 03/07/2018, v1.10, beta*
 
 The feature contains two folds:
 - Prevent deletion of Persistent Volume Claims that are used by a pod (beta)
@@ -1141,76 +1171,9 @@ massive problems for the pod. These features provide validation that prevents th
 
 - [postpone pv deletion design doc](https://github.com/kubernetes/community/blob/eb4ec5c9c3d978eded6a3a303c69b8e002c085a2/contributors/design-proposals/storage/postpone-pv-deletion.md)
 
-## pod safety
+## (small) volume.subPath
 
-*Date: 07/26/2018, v1.11, design*
-
-**Overview**
-
-The proposal discusses the pod execution guarantees, in what cases a cluster partition happens and
-how to prevent/fix the partition.
-
-**Background**
-
-First off, a bit of background about pod execution and deletion.
-- Pod termination is divided into the following steps:
-  - A component requests the termination of the pod by issuing a DELETE to the pod resource with an
-    optional grace period
-    - If no grace period is provided, the default from the pod is leveraged
-    - When the kubelet observes the deletion, it starts a timer equal to the grace period and performs
-      the following actions:
-      - Executes the pre-stop hook, if specified, waiting up to grace period seconds before continuing
-      - Sends the termination signal to the container runtime (SIGTERM or the container image's STOPSIGNAL on Docker)
-      - Waits 2 seconds, or the remaining grace period, whichever is longer
-      - Sends the force termination signal to the container runtime (SIGKILL)
-  - Once the kubelet observes the container is fully terminated, it issues a status update to the
-    REST API for the pod indicating termination, then issues a DELETE with grace period = 0.
-- Deleting a pod with grace period 0 is called force deletion and will update the pod with a
-  `deletionGracePeriodSeconds` of 0, and then immediately remove the pod from etcd. Because all
-  communication is asynchronous, force deleting a pod means that the pod processes may continue to
-  run for an arbitrary amount of time. If a higher level component like the StatefulSet controller
-  treats the existence of the pod API object as a strongly consistent entity, deleting the pod in
-  this fashion will violate the at-most-one guarantee we wish to offer for StatefulSet.
-- ReplicaSets and ReplicationControllers both attempt to preserve availability of their constituent
-  pods over ensuring at most one (of a pod) semantics. So a replica set to scale 1 will immediately
-  create a new pod when it observes an old pod has begun graceful deletion, and as a result at many
-  points in the lifetime of a replica set there will be 2 copies of a pod's processes running
-  concurrently. Only access to exclusive resources like storage can prevent that simultaneous
-  execution. As described above, it is not safe to use persistent volumes that lack RWO guarantees
-  with a replica set or deployment, even at scale 1.
-
-**Goal**
-
-This proposal covers the changes necessary to ensure:
-- StatefulSet can ensure at most one semantics for each individual pet
-- Other system components such as the node and namespace controller can safely perform their responsibilities without violating that guarantee
-- An administrator or higher level controller can signal that a node partition is permanent, allowing the StatefulSet controller to proceed
-- A fencing controller can take corrective action automatically to heal partitions
-
-We will accomplish this by:
-- Clarifying which components are allowed to force delete pods (as opposed to merely requesting termination)
-- Ensuring system components can observe partitioned pods and nodes correctly
-- Defining how a fencing controller could safely interoperate with partitioned nodes and pods to safely heal partitions
-- Describing how shared storage components without innate safety guarantees can be safely shared on the cluster.
-
-**Proposed changes**
-
-- Avoid multiple instances of pods: a couple Kubernetes components are to be changed with regard to
-  managing pods. For example, all existing controllers must be changed to only signal pod termination,
-  and are not allowed to force delete pods.
-- Fencing: a fencing controller is proposed to take actions in care of partition. It leverages a
-  couple external APIs like cloud provider control plane, Hardware IPMI interface, etc.
-- Storage Consistency: scheduler and kubelet must be aware of RWO volume and make sure a RWO volume
-  can not be used by two pods simultaneously. Kubelet of a newer pod must wait the other pod
-  terminates, before starting the new pods.
-
-*References*
-
-- [pod safety design doc](https://github.com/kubernetes/community/blob/2d2feabc33402ce4c2dacbef6830198fd5ba13a3/contributors/design-proposals/storage/pod-safety.md)
-
-## volume.subPath
-
-*Date: 04/04/2017, v1.6*
+- *Date: 04/04/2017, v1.6*
 
 Sometimes, it is useful to share one volume for multiple uses in a single pod. The `volumeMounts.subPath`
 property can be used to specify a sub-path inside the referenced volume instead of its root. Here is
@@ -1243,39 +1206,81 @@ spec:
         claimName: my-lamp-site-data
 ```
 
-## flexvolume and dynamic flexvolume
+## (closed) configurable volume provisioning
 
-*Date: 10/26/2016, v1.4*
+- *Date: 07/16/2017, v1.7, design*
+- *Date: 02/28/2018, v1.9, closed*
 
-flexvolume is just another volume plugin, similar to gce, nfs, etc. During volume probe, a directory
-is searched to find volume plugins, default path is `/usr/libexec/kubernetes/kubelet-plugins/volume/exec`.
+With storage class, user can request a specific storage class, and a dynamic provisioner can create
+persistent volume of that storage class on the fly for the user. However, there's little control
+from the user about the attributes of the new volume; also, amdin has to configure a lot of parameters
+which can be tedious (e.g. create a lot of storage class for different type of volumes).
 
-Kubernetes defines a custom 'protocol' for communicating with the plugin (plugin is just a regular
-binary). As of kubernetes 1.4, five methods needs be implemented, i.e. init, attach, detach, mount,
-unmount. Eventually, flexvolume will be replaced by csi.
+Configurable volum provisioning aims to solve the problem. The proposal also removes the restriction
+in the initial volume provisioning proposal where `claim.Spec.Selector` and `claim.Spec.Class` are
+mutually exclusive. Below is an example from the proposal.
 
-*Update on 10/27/2017, v1.8*
+```yaml
+apiVersion: storage.k8s.io/v1beta1
+kind: StorageClass
+metadata:
+  name: slow
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+  zones: us-east-1a, us-east-1b, us-east-1c, us-east-2a, us-east-2b, us-east-2c
+selectorOptions:
+  - key: failure-domain.beta.kubernetes.io/zone
+    allowedValues:
+      - us-east-1a
+      - us-east-1b
+      - us-east-1c
+      - us-east-2a
+      - us-east-2b
+      - us-east-2c
+    description: "Requested AWS availability zone"
+  - key: encryption.beta.kubernetes.io/enabled
+    defaultValue: "false"
+    allowedValues:
+      - "true"
+      - "false"
+    description: "Request volume encryption"
+  - key: encryption.beta.kubernetes.io/key-id
+    description: "ID of AWS encryption key"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: myclaim
+spec:
+  class: slow
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1500Mi
+  selector:
+    matchLabels:
+      encryption.beta.kubernetes.io/enabled: "false"
+    matchExpressions:
+      - key: failure-domain.beta.kubernetes.io/zone
+        operator: In
+        values:
+          - us-east-1a
+          - us-east-1b
+          - us-east-1c
+```
 
-The updated proposal contains more methods: waitforattach, mountdevice, unmountdevice. Another
-option, `--enable-controller-attach-detach` is introduced for the plugin to be called remotely,
-e.g. calling attach method from master to attach a device to a node.
-
-*Update on 06/24/2018, v1.10*
-
-Adding new out-of-tree volume dynamically via flexvolume requires kubelet or controller manager
-restart. To solve the problem, the proposal proposes to add a PluginProber interface which contains
-Init() and Probe() methods; flexvolume will use inotify to find new volume plugin in search path.
-The feature has been implemented and is superceded by csi.
+Note this proposal is closed due to lack of feature leader.
 
 *References*
 
-- [flexvolume example](https://github.com/kubernetes/kubernetes/tree/6d81e916a6c5e7c992f141018b7f262c818a638f/examples/volumes/flexvolume)
-- [flexvolume devel](https://github.com/kubernetes/community/blob/4377efa625d91ed8367bbc6a6672b7dff03dbd2b/contributors/devel/flexvolume.md)
-- [dynamic flexvolume deployment design doc](https://github.com/kubernetes/community/blob/eb4ec5c9c3d978eded6a3a303c69b8e002c085a2/contributors/design-proposals/storage/flexvolume-deployment.md)
+- https://github.com/kubernetes/community/pull/247
+- https://github.com/kubernetes/features/issues/244
 
-## disk accounting
+## (discussion) disk accounting
 
-*Date: 05/08/2017, v1.6*
+- *Date: 05/08/2017, v1.6*
 
 **Proposal**
 
@@ -1440,7 +1445,132 @@ For container disk information, handler calls "GetContainerInfo", which also get
 cadvisor then returns metrics from in-memory cache. Regarding how disk information is collected, it
 is an implementation detail of cadvisor.
 
-# Workflow
+## (discussion) pod safety
+
+- *Date: 07/26/2018, v1.11, design*
+
+**Overview**
+
+The proposal discusses the pod execution guarantees, in what cases a cluster partition happens and
+how to prevent/fix the partition.
+
+**Background**
+
+First off, a bit of background about pod execution and deletion.
+- Pod termination is divided into the following steps:
+  - A component requests the termination of the pod by issuing a DELETE to the pod resource with an
+    optional grace period
+    - If no grace period is provided, the default from the pod is leveraged
+    - When the kubelet observes the deletion, it starts a timer equal to the grace period and performs
+      the following actions:
+      - Executes the pre-stop hook, if specified, waiting up to grace period seconds before continuing
+      - Sends the termination signal to the container runtime (SIGTERM or the container image's STOPSIGNAL on Docker)
+      - Waits 2 seconds, or the remaining grace period, whichever is longer
+      - Sends the force termination signal to the container runtime (SIGKILL)
+  - Once the kubelet observes the container is fully terminated, it issues a status update to the
+    REST API for the pod indicating termination, then issues a DELETE with grace period = 0.
+- Deleting a pod with grace period 0 is called force deletion and will update the pod with a
+  `deletionGracePeriodSeconds` of 0, and then immediately remove the pod from etcd. Because all
+  communication is asynchronous, force deleting a pod means that the pod processes may continue to
+  run for an arbitrary amount of time. If a higher level component like the StatefulSet controller
+  treats the existence of the pod API object as a strongly consistent entity, deleting the pod in
+  this fashion will violate the at-most-one guarantee we wish to offer for StatefulSet.
+- ReplicaSets and ReplicationControllers both attempt to preserve availability of their constituent
+  pods over ensuring at most one (of a pod) semantics. So a replica set to scale 1 will immediately
+  create a new pod when it observes an old pod has begun graceful deletion, and as a result at many
+  points in the lifetime of a replica set there will be 2 copies of a pod's processes running
+  concurrently. Only access to exclusive resources like storage can prevent that simultaneous
+  execution. As described above, it is not safe to use persistent volumes that lack RWO guarantees
+  with a replica set or deployment, even at scale 1.
+
+**Goal**
+
+This proposal covers the changes necessary to ensure:
+- StatefulSet can ensure at most one semantics for each individual pet
+- Other system components such as the node and namespace controller can safely perform their responsibilities without violating that guarantee
+- An administrator or higher level controller can signal that a node partition is permanent, allowing the StatefulSet controller to proceed
+- A fencing controller can take corrective action automatically to heal partitions
+
+We will accomplish this by:
+- Clarifying which components are allowed to force delete pods (as opposed to merely requesting termination)
+- Ensuring system components can observe partitioned pods and nodes correctly
+- Defining how a fencing controller could safely interoperate with partitioned nodes and pods to safely heal partitions
+- Describing how shared storage components without innate safety guarantees can be safely shared on the cluster.
+
+**Proposed changes**
+
+- Avoid multiple instances of pods: a couple Kubernetes components are to be changed with regard to
+  managing pods. For example, all existing controllers must be changed to only signal pod termination,
+  and are not allowed to force delete pods.
+- Fencing: a fencing controller is proposed to take actions in care of partition. It leverages a
+  couple external APIs like cloud provider control plane, Hardware IPMI interface, etc.
+- Storage Consistency: scheduler and kubelet must be aware of RWO volume and make sure a RWO volume
+  can not be used by two pods simultaneously. Kubelet of a newer pod must wait the other pod
+  terminates, before starting the new pods.
+
+*References*
+
+- [pod safety design doc](https://github.com/kubernetes/community/blob/2d2feabc33402ce4c2dacbef6830198fd5ba13a3/contributors/design-proposals/storage/pod-safety.md)
+
+## (deprecated) flexvolume and dynamic flexvolume
+
+- *Date: 10/26/2016, v1.4*
+
+flexvolume is just another volume plugin, similar to gce, nfs, etc. During volume probe, a directory
+is searched to find volume plugins, default path is `/usr/libexec/kubernetes/kubelet-plugins/volume/exec`.
+
+Kubernetes defines a custom 'protocol' for communicating with the plugin (plugin is just a regular
+binary). As of kubernetes 1.4, five methods needs be implemented, i.e. init, attach, detach, mount,
+unmount. Eventually, flexvolume will be replaced by csi.
+
+*Update on 10/27/2017, v1.8*
+
+The updated proposal contains more methods: waitforattach, mountdevice, unmountdevice. Another
+option, `--enable-controller-attach-detach` is introduced for the plugin to be called remotely,
+e.g. calling attach method from master to attach a device to a node.
+
+*Update on 06/24/2018, v1.10*
+
+Adding new out-of-tree volume dynamically via flexvolume requires kubelet or controller manager
+restart. To solve the problem, the proposal proposes to add a PluginProber interface which contains
+Init() and Probe() methods; flexvolume will use inotify to find new volume plugin in search path.
+The feature has been implemented and is superceded by csi.
+
+*References*
+
+- [flexvolume example](https://github.com/kubernetes/kubernetes/tree/6d81e916a6c5e7c992f141018b7f262c818a638f/examples/volumes/flexvolume)
+- [flexvolume devel](https://github.com/kubernetes/community/blob/4377efa625d91ed8367bbc6a6672b7dff03dbd2b/contributors/devel/flexvolume.md)
+- [dynamic flexvolume deployment design doc](https://github.com/kubernetes/community/blob/eb4ec5c9c3d978eded6a3a303c69b8e002c085a2/contributors/design-proposals/storage/flexvolume-deployment.md)
+
+## (deprecated) containerized mounter pod
+
+- *Date: 05/23/2017, v1.6, design*
+- *Date: 06/24/2018, v1.10, design*
+
+The goal of this proposal is to allow kubernetes to
+`provision/attach/mount/unmount/detach/delete` volumes in pod instead of on the host. For example,
+currently, to mount a glusterfs volumes, we do all the setup on host (kubelet mounts everything);
+but in certain os, such tools are not available.
+
+The proposal aims to address this to allow pod to do all the work; so it is not a requirement to
+have `mout.glusterfs` utility on host; rather, a daemonset pod contains the utility and will be
+called via kubelet when mount/unmount, etc. For this to work properly, daemonset pod must be ran in
+privileged mode, and certain directories (notably `/var/lib/kubelet`) must have 'shared' mount
+propagation.
+
+*Update on 06/24/2018, v1.10, design*
+
+NOTE: As we expect that most volume plugins are going to be moved to CSI soon, all implementation of
+this proposal will be guarded by alpha feature gate `MountContainers` which is never going leave
+alpha. Whole implementation of this proposal is going to be removed when the plugins are fully moved
+to CSI. With CSI, all mount/umount operations are handled in CSI driver.
+
+*References*
+
+- [containerized mounter pod design doc](https://github.com/kubernetes/community/blob/eb4ec5c9c3d978eded6a3a303c69b8e002c085a2/contributors/design-proposals/storage/containerized-mounter-pod.md)
+- https://github.com/kubernetes/community/pull/589
+
+# Implementation
 
 ## kubelet volume setup
 

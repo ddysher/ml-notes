@@ -57,7 +57,7 @@ CIDRs, the project allows you to run a DaemonSet that configures a list of CIDRs
 *Update on 04/07/2018, kubernetes v1.10*
 
 The [project](https://github.com/mtaufen/ip-masq-agent) is proposed to kubernetes incubator, which is
-approved and then moved to [incubator](https://github.com/kubernetes-incubator/ip-masq-agent)
+approved and then moved to [incubator](https://github.com/kubernetes-incubator/ip-masq-agent).
 
 # Implementation
 

@@ -13,8 +13,9 @@
 
 kubevirt is created from RedHat.
 
-kubevirt provides virtualization API and runtime in Kubernetes, in order to define and manage virtual
-machines. kubevirt extends Kubernetes API with three CRDs:
+[kubevirt](https://github.com/kubevirt/kubevirt) provides virtualization API and runtime in
+Kubernetes, in order to define and manage virtual machines. kubevirt extends Kubernetes API with
+three CRDs:
 - VirtualMachine (vm)
 - VirtualMachineInstance (vmi)
 - VirtualMachineInstanceReplicaSet

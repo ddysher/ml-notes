@@ -3,32 +3,24 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [KEPs](#keps)
-  - [production readiness review](#production-readiness-review)
-  - [appropriate use of node-role labels](#appropriate-use-of-node-role-labels)
+  - [20190716 - appropriate use of node-role labels](#20190716---appropriate-use-of-node-role-labels)
+  - [20190731 - production readiness review](#20190731---production-readiness-review)
 - [Feature & Design](#feature--design)
-  - [arch: borg/mesos style](#arch-borgmesos-style)
-  - [arch: kubernetes node (worker node, minion)](#arch-kubernetes-node-worker-node-minion)
-  - [arch: kubernetes control plane (master)](#arch-kubernetes-control-plane-master)
+  - [(design pattern) building mesos/omega-style frameworks on kubernetes](#design-pattern-building-mesosomega-style-frameworks-on-kubernetes)
+  - [(analysis) kubernetes control plane (master)](#analysis-kubernetes-control-plane-master)
+  - [(analysis) kubernetes node, aka, worker node, minion](#analysis-kubernetes-node-aka-worker-node-minion)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
+> A collection of proposals, designs, features in Kubernetes architecture.
+
+- [SIG-Architecture KEPs](https://github.com/kubernetes/enhancements/blob/master/keps/sig-architecture)
+- [SIG-Architecture Proposals](https://github.com/kubernetes/community/tree/master/contributors/design-proposals/architecture)
+- [SIG-Architecture Community](https://github.com/kubernetes/community/tree/master/sig-architecture)
+
 # KEPs
 
-## production readiness review
-
-- *Date: 08/18/2019*
-
-The KEP introduces a process and critiera for merging Kubernetes features. It is still under review,
-with the following goals:
-- Define production readiness criteria for alpha, beta, and GA features.
-- Define a production readiness review gate and process for all features.
-- Utilize existing tooling with prow to enforce the process.
-
-*References*
-
-- https://github.com/kubernetes/enhancements/pull/1193
-
-## appropriate use of node-role labels
+## 20190716 - appropriate use of node-role labels
 
 - *Date: 09/01/2019*
 - *Date: 12/14/2019, v1.17, alpha*
@@ -37,7 +29,7 @@ Kubernetes introduced a label `node-role.kubernetes.io/master=` for the purpose 
 as master, which allows external tools to recognize the label and do their own processing, e.g. for
 `kubeadm` to deploy master components. However, due to lack of review, many other Kubernetes core
 components (within kubernetes/kubernetes) and related projects were introduced which depend on the
-label, which is problematic. For example, an implementation uses `node-role.kubernetes.io/master=`
+label. This is problematic. For example, an implementation uses `node-role.kubernetes.io/master=`
 to determine if a certain pod should be scheduled on "master", but the usage of "master" is not the
 same across different scenario. The correct way here is to define dedicated labels and add thses
 labels to nodes of choices.
@@ -54,11 +46,32 @@ cannot be used to change Kubernetes behavior.
 
 - [appropriate use of node-role labels KEP link](https://github.com/kubernetes/enhancements/blob/76bc70540550659b39afa8f8b41e04f921bdf257/keps/sig-architecture/2019-07-16-node-role-label-use.md)
 
+## 20190731 - production readiness review
+
+- *Date: 08/18/2019*
+
+The problem at hand is that proposal and implementation of KEPs are mostly developers, which means
+there is lack of input from cluster operators, who care more about operational concerns rather than
+individual functionalities.
+
+The goal of the KEP is to introduce a process and critiera for merging Kubernetes features, which
+hopefully will make sure once merged, the KEP is production ready.
+
+> Goals from the KEP:
+> - Define production readiness criteria for alpha, beta, and GA features.
+> - Define a production readiness review gate and process for all features.
+> - Utilize existing tooling with prow to enforce the process.
+
+*References*
+
+- [production readiness review KEP link](https://github.com/kubernetes/enhancements/blob/1bad2ecb356323429a6ac050f106af4e1e803297/keps/sig-architecture/20190731-production-readiness-review-process.md)
+- https://github.com/kubernetes/enhancements/pull/1193
+
 # Feature & Design
 
-## arch: borg/mesos style
+## (design pattern) building mesos/omega-style frameworks on kubernetes
 
-*Date: 05/18/2017*
+- *Date: 05/18/2017*
 
 Borg style architecture
 
@@ -83,31 +96,9 @@ Building mesos style framework on kubernetes
 
 - [mesos style design doc](https://github.com/kubernetes/community/blob/460827bdbd253b20b966889bcc361375763e453c/contributors/devel/mesos-style.md)
 
-## arch: kubernetes node (worker node, minion)
+## (analysis) kubernetes control plane (master)
 
-*Date: 09/01/2014*
-
-**Docker**
-
-The Kubernetes node has the services necessary to run Docker containers and be managed from the
-master systems.
-
-**Kubelet**
-
-The Kubelet works in terms of a container manifest. A container manifest is a YAML file that describes
-a pod. The Kubelet takes a set of manifests that are provided in various mechanisms and ensures that
-the containers described in those manifests are started and continue running.
-
-**Proxy**
-
-Each node also runs a simple network proxy. This reflects services as defined in the Kubernetes API
-on each node and can do simple TCP stream forwarding or round robin TCP forwarding across a set of
-backends. A service is a configuration unit for the proxies that run on every worker node. It is
-named and points to one or more pods.
-
-## arch: kubernetes control plane (master)
-
-*Date: 09/01/2014*
+- *Date: 09/01/2014*
 
 **etcd**
 
@@ -127,3 +118,25 @@ them and storing them in etcd, the API Server does two other things:
 
 The replicationController type described above isn't strictly necessary for Kubernetes to be useful.
 It is really a service that is layered on top of the simple pod API.
+
+## (analysis) kubernetes node, aka, worker node, minion
+
+- *Date: 09/01/2014*
+
+**Docker**
+
+The Kubernetes node has the services necessary to run Docker containers and be managed from the
+master systems.
+
+**Kubelet**
+
+The Kubelet works in terms of a container manifest. A container manifest is a YAML file that describes
+a pod. The Kubelet takes a set of manifests that are provided in various mechanisms and ensures that
+the containers described in those manifests are started and continue running.
+
+**Proxy**
+
+Each node also runs a simple network proxy. This reflects services as defined in the Kubernetes API
+on each node and can do simple TCP stream forwarding or round robin TCP forwarding across a set of
+backends. A service is a configuration unit for the proxies that run on every worker node. It is
+named and points to one or more pods.

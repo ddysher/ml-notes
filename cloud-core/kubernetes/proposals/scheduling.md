@@ -3,27 +3,28 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [KEPs](#keps)
-  - [coscheduling](#coscheduling)
-  - [even pods spreading](#even-pods-spreading)
+  - [20180409 - scheduler framework, aka, scheduler v2](#20180409---scheduler-framework-aka-scheduler-v2)
+  - [20180703 - coscheduling](#20180703---coscheduling)
+  - [20191012 - taint node by conditions](#20191012---taint-node-by-conditions)
+  - [20190221 - pod topology spread](#20190221---pod-topology-spread)
 - [Feature & Design](#feature--design)
-  - [rescheduling & rescheduler, or descheduler](#rescheduling--rescheduler-or-descheduler)
-  - [rescheduler for critical pods](#rescheduler-for-critical-pods)
-  - [pod priority](#pod-priority)
-  - [pod preemption](#pod-preemption)
-  - [pod priority quota](#pod-priority-quota)
-  - [scheduler extender](#scheduler-extender)
-  - [multi-scheduler](#multi-scheduler)
-  - [scheduler framework, aka, scheduler v2](#scheduler-framework-aka-scheduler-v2)
-  - [taint node by conditions](#taint-node-by-conditions)
-  - [schedule daemonset pod by default scheduler](#schedule-daemonset-pod-by-default-scheduler)
-  - [node affinity](#node-affinity)
-  - [pod affinity/anti-affinity](#pod-affinityanti-affinity)
-  - [taint, toleration and dedicated nodes](#taint-toleration-and-dedicated-nodes)
-  - [scheduler equivalence class](#scheduler-equivalence-class)
-  - [scheduler policy via configmap](#scheduler-policy-via-configmap)
-  - [per-pod-configurable eviction behavior](#per-pod-configurable-eviction-behavior)
-  - [scheduler binding](#scheduler-binding)
-- [PRs](#prs)
+  - [(large) rescheduling & rescheduler, or descheduler](#large-rescheduling--rescheduler-or-descheduler)
+  - [(large) pod priority](#large-pod-priority)
+  - [(large) pod preemption](#large-pod-preemption)
+  - [(large) multi-scheduler](#large-multi-scheduler)
+  - [(large) node affinity](#large-node-affinity)
+  - [(large) pod affinity/anti-affinity](#large-pod-affinityanti-affinity)
+  - [(large) taint, toleration and dedicated nodes](#large-taint-toleration-and-dedicated-nodes)
+  - [(medium) pod priority quota](#medium-pod-priority-quota)
+  - [(medium) scheduler extender](#medium-scheduler-extender)
+  - [(medium) schedule daemonset pod by default scheduler](#medium-schedule-daemonset-pod-by-default-scheduler)
+  - [(medium) scheduler equivalence class](#medium-scheduler-equivalence-class)
+  - [(small) scheduler policy via configmap](#small-scheduler-policy-via-configmap)
+  - [(small) per-pod-configurable eviction behavior](#small-per-pod-configurable-eviction-behavior)
+  - [(small) predicates ordering](#small-predicates-ordering)
+  - [(small) scheduler binding](#small-scheduler-binding)
+  - [(deprecated) rescheduler for critical pods](#deprecated-rescheduler-for-critical-pods)
+- [Implementation](#implementation)
   - [scheduling with volume count](#scheduling-with-volume-count)
   - [scheduler performance improvement for affinity/anti-affinity](#scheduler-performance-improvement-for-affinityanti-affinity)
 
@@ -31,13 +32,94 @@
 
 > A collection of proposals, designs, features in Kubernetes scheduling.
 
+- [SIG-Scheduling KEPs](https://github.com/kubernetes/enhancements/blob/master/keps/sig-scheduling)
+- [SIG-Scheduling Proposals](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling)
 - [SIG-Scheduling Community](https://github.com/kubernetes/community/tree/master/sig-scheduling)
 
 # KEPs
 
-## coscheduling
+## 20180409 - scheduler framework, aka, scheduler v2
 
-- *Date: 09/14/2019, v1.15*
+- *Date: 08/03/2018, v1.11, design*
+- *Date: 02/11/2020, v1.17, alpha*
+
+The proposal lists a bunch of limitations in current scheduler:
+- there's limited extension points (only post filter and post scoring), which means it's harder to
+  extend the scheduler and all changes must be compiled in default scheduler
+- scheduler extender is slow with http & json
+- there's no feedback from scheduler to extender about scheduling failure
+- scheduler extender cannot share cache with default scheduler
+
+A new scheduler framework is proposed to solve the problems; at its core is a bunch of extension
+points, which can be in-process using golang plugin or out-of-process using http & json. The
+extension points (as of v1.11 design) are:
+
+<details><summary>outdated extension points @v1.11</summary><p>
+
+- scheduling queue sort
+- pre-filter: Only Pod is passed to the plugins, used to check certain required conditions.
+- filter: The plugins filter out Nodes that cannot run the Pod.
+- post-filter: The Pod and the set of nodes that can run the Pod are passed to these plugins.
+- scoring: The plugins are utilized to rank nodes that have passed the filtering stage.
+- post-scroing: The Pod and the chosen node are passed to these plugins.
+- reserve: NOT a plugin, but a phase in scheduler framework to reserve the chosen Node for the Pod.
+- admit: The plugins run in a separate go routine to return admit result - admin, reject and wait.
+- reject: Plugins registered here are called if the reservation of the Pod is cancelled to undo any changes made in admit phase.
+- pre-bind: These plugins run before the actual binding of the Pod to a Node happens.
+- bind: These plugins run when binding the Pod; once a true is returned the remaining plugins are skipped.
+- post-bind: The Post Bind plugins can be useful for housekeeping after a pod is scheduled.
+
+</p></details></br>
+
+*Update on 02/11/2020*
+
+In v1.15 release, scheduler framework reached alpha, and the extensions points are updated to:
+- queue sort
+- pre-filter
+- filter
+- post-filter
+- scoring
+- normalize-scroing
+- reserve
+- permit (one of approve, deny and wait)
+- pre-bind
+- bind
+- post-bind
+- unreserve
+
+In addition, the scheduler framework doesn't use golang plugin; instead, all plugins are compiled
+directly into scheduler binary, and each plugin can be enabled/disabled independently. The design
+means if one is interested in a community plugin but it's not compiled into default scheduler binary,
+then he or she has to compiled it and replace with the default scheduler running in the cluster.
+
+> The Scheduling Framework defines new extension points and Go APIs in the Kubernetes Scheduler for
+> use by "plugins". Plugins add scheduling behaviors to the scheduler, and are included at compile
+> time. The scheduler's ComponentConfig will allow plugins to be enabled, disabled, and reordered.
+> Custom schedulers can write their plugins "out-of-tree" and compile a scheduler binary with their
+> own plugins included.
+
+A couple more concepts:
+- Scheduling cycle: The scheduling cycle selects a node for the pod.
+- Binding cycle: The binding cycle applies scheduling decision to the cluster.
+- Scheduling context: Together, a scheduling cycle and binding cycle are referred to as a "scheduling
+  context". Scheduling cycles are run serially, while binding cycles may run concurrently.
+- CycleState: A CycleState will provide APIs for accessing data whose scope is the current scheduling
+  context, and can be used to pass data between plugins at different extension points.
+- FrameworkHandle: The FrameworkHandle provides APIs relevant to the lifetime of a plugin. This is
+  how plugins can get a client (kubernetes.Interface) and SharedInformerFactory, or read data from
+  the scheduler's cache of cluster state.
+
+*References*
+
+- [scheduler framework KEP link](https://github.com/kubernetes/enhancements/blob/6427a0becff459815e0e41f72f65ab5f3b8e9c6d/keps/sig-scheduling/20180409-scheduling-framework.md)
+- [scheduler framework interface definition @v1alpha1](https://github.com/kubernetes/kubernetes/blob/v1.17.2/pkg/scheduler/framework/v1alpha1/interface.go)
+- https://github.com/kubernetes/community/pull/2281
+- https://kubernetes.io/docs/concepts/configuration/scheduling-framework/
+
+## 20180703 - coscheduling
+
+- *Date: 09/14/2019, v1.15, kube-batch*
+- *Date: 02/11/2020, v1.17, scheduler-framework*
 
 Co-scheduling is a proposal to add more batch scheduling capabilities in Kubernetes, notably gang
 scheduling and resource sharing across multi-tenants.
@@ -45,11 +127,29 @@ scheduling and resource sharing across multi-tenants.
 After the KEP, the kube-batch project has since then changed quite a bit. For more information, refer
 to [kube-batch](https://github.com/kubernetes-sigs/kube-batch).
 
+With the introduction of scheduler framework, [a new KEP](https://github.com/kubernetes/enhancements/pull/1463)
+is proposed to implement coscheduling using scheduler framework.
+
 *References*
 
 - [coscheduling KEP link](https://github.com/kubernetes/enhancements/blob/8e70bb6d374f911e87c2f6e1fa31ec80f12451b5/keps/sig-scheduling/34-20180703-coscheduling.md)
 
-## even pods spreading
+## 20191012 - taint node by conditions
+
+- *Date: 07/28/2017, v1.7, design*
+- *Date: 12/09/2019, v1.17, stable*
+
+Currently, node conditions are patched via kubelet and node controller. The information is furthur
+used by other components, e.g. scheduler filters out nodes with condition `NetworkUnavailable=True`.
+However, this is not optimal as user might want to schedule pod to that node, e.g. for troubleshotting
+issues. The proposal aims to solve the issue via tainting node using node condition, users can then
+use tolerations to improve scheduling capability.
+
+- [taint node by conditions KEP link](https://github.com/kubernetes/enhancements/blob/89c4310e3934fad5a1e339855b7c92c553fae597/keps/sig-scheduling/20191012-graduate-taint-node-by-condition-to-ga.md)
+- [taint node by conditions design doc](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling/taint-node-by-condition.md)
+- https://github.com/kubernetes/community/pull/819
+
+## 20190221 - pod topology spread
 
 - *Date: 09/22/2019, v1.16, alpha*
 
@@ -156,20 +256,20 @@ Below is a few conventions in EvenPodsSpread feature:
 
 *References*
 
-- [even pods spreading KEP link](https://github.com/kubernetes/enhancements/blob/26dc9a946876b32f3f2b41a58edf4e35a2751f9f/keps/sig-scheduling/20190221-even-pods-spreading.md)
+- [pod topology spread KEP link](https://github.com/kubernetes/enhancements/blob/d7306177022e9af921e5f6196b0dd592d01e5c28/keps/sig-scheduling/20190221-pod-topology-spread.md)
 - https://github.com/kubernetes/kubernetes/issues/68981
 
 # Feature & Design
 
-## rescheduling & rescheduler, or descheduler
+## (large) rescheduling & rescheduler, or descheduler
 
-*Date: 02/28/2018, v1.9*
+- *Date: 02/28/2018, v1.9*
 
 **[Rescheduling proposal](https://github.com/kubernetes/community/blob/b8d4a1b389bd105d23ca496b1c67febe1e2efdf2/contributors/design-proposals/scheduling/rescheduling.md)**
 
 The proposal is kind of an umbrella proposal which introduces some key mechanisms and components in
-kubernetes scheduling area: priority, preemption, disruption budgets, the `/evict` subresource and
-the rescheduler.
+kubernetes scheduling area: priority, preemption, disruption budgets, node drain, the `/evict`
+subresource and the rescheduler.
 
 **[Rescheduler proposal](https://github.com/kubernetes/community/blob/b8d4a1b389bd105d23ca496b1c67febe1e2efdf2/contributors/design-proposals/scheduling/rescheduler.md)**
 
@@ -198,40 +298,7 @@ default scheduler for that.
 As of Kubernetes 1.9, rescheduler only cares about critical pods and will proactively reschedule
 pods to other nodes; while descheduler only checks policies and evit pods from targeted nodes.
 
-## rescheduler for critical pods
-
-- *Date: 07/20/2017, v1.7*
-- *Date: 06/14/2018, v1.10, deprecated*
-
-Rescheduler for critical pods is a component to re-schedule pending pods to other nodes, or shuffle
-existing running pods to improve server utilizations. As of kubernetes 1.7, this is not a general
-component; it is primarily used to make sure critical addon pods keep running. There is another
-rescheduler called `descheduler` which works differently; it proactively rescheduless all pods in
-the cluster. To benefit from rescheduler for critical pods, there are three requirements:
-- pods must run in `kube-system` namespace (configurable)
-- have the `scheduler.alpha.kubernetes.io/critical-pod` annotation set to empty string
-- have the PodSpec's tolerations field set to `[{"key":"CriticalAddonsOnly", "operator":"Exists"}]`
-
-Internally, rescheduler lists all unschedulable pods, and finds pods with the above annotation. For
-all such unschedulable critical pods, it finds suitable nodes for them. Before assigning the pod to
-selected nodes, rescheduler will taints the node with `CriticalAddonsOnly` to make room for the
-critical pods. The taint will be removed once the add-on is successfully scheduled. The above
-algothrim requires both annotation and taints to present for rescheduler to work.
-
-*Update on 06/14/2018, v1.10, deprecated*
-
-Rescheduler is marked deprecated in favor of priority/preemption feature in default scheduler.
-Rescheduler will be completely deprecated once scheduling logic in daemonset controller is removed
-and its pods are scheduled via default scheduler to leverage preemption feature; until then, we
-still need rescheduler to shuffle pods for daemonset controller.
-
-*References*
-
-- [rescheduling for critical pods proposal](https://github.com/kubernetes/community/blob/b8d4a1b389bd105d23ca496b1c67febe1e2efdf2/contributors/design-proposals/scheduling/rescheduling-for-critical-pods.md)
-- https://github.com/kubernetes/contrib/tree/master/rescheduler
-- https://kubernetes.io/docs/tasks/administer-cluster/guaranteed-scheduling-critical-addon-pods/
-
-## pod priority
+## (large) pod priority
 
 - *Date: 05/23/2017, v1.6, design*
 - *Date: 10/27/2017, v1.8, alpha*
@@ -261,7 +328,7 @@ type PodSpec struct {
 
 And a new scheduling API will be added to scheduling api group:
 
-```
+```go
 // PriorityClass defines the mapping from a priority class name to the priority
 // integer value. The value can be any valid integer.
 type PriorityClass struct {
@@ -285,7 +352,7 @@ type PriorityClassList struct {
 }
 ```
 
-A few notes:
+Following is a list of design considerations:
 - Pod references a PriorityClaas through pod.Spec.PriorityClassName, and this is resolved during
   apiserver admission control (a new admission controller). If no PriorityClass is specified, it
   will default to zero in the first version; in later version, a default priority class will be
@@ -309,7 +376,7 @@ A few notes:
 - https://github.com/kubernetes/enhancements/issues/564
 - https://github.com/kubernetes/kubernetes/issues/57471
 
-## pod preemption
+## (large) pod preemption
 
 - *Date: 06/23/2018, v1.11, beta*
 - *Date: 06/11/2019, v1.14, stable*
@@ -373,64 +440,9 @@ right now.
 
 - [pod preemption design doc](https://github.com/kubernetes/community/blob/d251c97aff20fe94fea9761a2ce9b922e6b68239/contributors/design-proposals/scheduling/pod-preemption.md)
 
-## pod priority quota
+## (large) multi-scheduler
 
-- *Date: 06/23/2018, v1.11*
-
-Apart from priority API design above, a new design, priority resource quota is added (as part of the
-ResourceQuota API). Since we already have priority field in Pod spec, Pods can now be classified
-into different priority classes.
-
-We would like to be able to create quota for various priority classes in order to manage cluster
-resources better and limit abuse scenarios. The link above has detailed design and user story; in
-short, the existing `scope` field in ResourceQuota API will be extended to consider pod priority.
-The resource quota scope is used to filter objects matching the quota, so naturally, we add the
-priority info into quota scope so it will match pods of specific priority, etc.
-
-*Update on 06/29/2019, v1.15*
-
-The design has changed to use `scopeSelector` in `ResourceQuota`, e.g.
-
-```yaml
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: pod-priority
-spec:
-  hard:
-    pods: "2"
-  scopeSelector:
-    matchExpressions:
-    - operator: In
-      scopeName: PriorityClass
-      values:
-      - pod-priority
-```
-
-*References*
-
-- [pod priority resource quota design doc](https://github.com/kubernetes/community/blob/99e4e741f8c488e427e6b8398b0cf55c6c8ad306/contributors/design-proposals/scheduling/pod-priority-resourcequota.md)
-
-## scheduler extender
-
-*Date: 08/03/2018, v1.11*
-
-When scheduling a pod, the extender allows an external process to filter, prioritize nodes, as well
-as preempt pods on nodes. Three separate http/https calls are issued to the extender:
-- one for `filter`
-- one for `prioritize`
-- one for `preempt`
-
-Additionally, the extender can choose to bind the pod to apiserver by implementing the `bind` action.
-Note the design doc is a bit outdated, it doesn't mention the `preempt` action.
-
-*References*
-
-- [scheduler extender design doc](https://github.com/kubernetes/community/blob/184c105667bd340fdb8a3dfaabe9a7a1d0346988/contributors/design-proposals/scheduling/scheduler_extender.md)
-
-## multi-scheduler
-
-*Date: 04/03/2017, v1.6*
+- *Date: 04/03/2017, v1.6*
 
 Kubernetes ships with a default scheduler; if the default scheduler does not suit your needs you can
 implement your own scheduler. Not just that, you can even run multiple schedulers simultaneously
@@ -462,98 +474,9 @@ Note there are a couple of other approaches to extend scheduler:
 - [multi-scheduler design doc](https://github.com/kubernetes/community/blob/0f7cc84c83867f6dd5cb241e7e2a69687ca7d796/contributors/design-proposals/multiple-schedulers.md)
 - https://kubernetes.io/docs/tutorials/clusters/multiple-schedulers/
 
-## scheduler framework, aka, scheduler v2
+## (large) node affinity
 
-*Date: 08/03/2018, v1.11, design*
-
-The proposal lists a bunch of limitations in current scheduler:
-- there's limited extension points (only post filter and post scoring), which means it's harder to
-  extend the scheduler and all changes must be compiled in default scheduler
-- scheduler extender is slow with http & json
-- there's no feedback from scheduler to extender about scheduling failure
-- scheduler extender cannot share cache with default scheduler
-
-A new scheduler framework is proposed to solve the problems; at its core is a bunch of extension
-points, which can be in-process using golang plugin or out-of-process using http & json. The
-extension points are:
-- scheduling queue sort
-- pre-filter: Only Pod is passed to the plugins, used to check certain required conditions.
-- filter: The plugins filter out Nodes that cannot run the Pod.
-- post-filter: The Pod and the set of nodes that can run the Pod are passed to these plugins.
-- scoring: The plugins are utilized to rank nodes that have passed the filtering stage.
-- post-scroing: The Pod and the chosen node are passed to these plugins.
-- [reserve]: NOT a plugin, but a phase in scheduler framework to reserve the chosen Node for the Pod.
-- admit: The plugins run in a separate go routine to return admit result - admin, reject and wait.
-- reject: Plugins registered here are called if the reservation of the Pod is cancelled to undo any changes made in admit phase.
-- pre-bind: These plugins run before the actual binding of the Pod to a Node happens.
-- bind: These plugins run when binding the Pod; once a true is returned the remaining plugins are skipped.
-- post-bind: The Post Bind plugins can be useful for housekeeping after a pod is scheduled.
-
-*References*
-
-- https://github.com/kubernetes/community/pull/2281
-
-## taint node by conditions
-
-*Date: 07/28/2017, v1.7*
-
-Currently, node conditions are patched via kubelet and node controller. The information is furthur
-used by other components, e.g. scheduler filters out nodes with condition `NetworkUnavailable=True`.
-However, this is not optimal as user might want to schedule pod to that node, e.g. for troubleshotting
-issues. The proposal aims to solve the issue via tainting node using node condition, users can then
-use tolerations to improve scheduling capability.
-
-- [taint node by conditions design doc](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling/taint-node-by-condition.md)
-- https://github.com/kubernetes/community/pull/819
-
-## schedule daemonset pod by default scheduler
-
-- *Date: 03/23/2018, v1.9, design*
-- *Date: 10/04/2018, v1.12, beta*
-
-As of 1.9, Kubernetes daemonset controller contains scheduling logic; it uses scheduler logic to
-determine node feasibility (e.g. PodFitHosts), and directly set `pod.spec.hostName`, which bypasses
-default scheduler. The reason for this origial design is that:
-- run on every node is a special scheduling case and scheduler is rather simple at that point
-- it is common to run daemonset even when node is not ready or scheduler is not running; coding the
-  scheduling logic into daemonset greatly simplifies things
-
-There was discussion to move scheduling logic from daemonset into scheduler, but was then rejected
-because of two problems:
-- scheduler can be swapped out; how do we make sure replacement scheduler work as expected for daemonset
-- how to solve the problem where critical pods must run on nodes even if nodes are not ready
-
-The issue was closed, but was then later brought up again, because as mentioned in the proposal, this
-design (scheduling logic in daemonset) has introduced a lot of problems, mostly due to increasingly
-complicated scheduler primitives. The solutions to the above problems:
-- there is a lot of potential ways for cluster admin to break things: broken replacement scheduler
-  is just one of them. The plan is probably to provide scheduler conformance test to make sure
-  replacement scheduler works as expected
-- to make sure critical pods can land on unready nodes, unready nodes will be tainted with certain
-  taints; and daemonset controller is responsible to add toleration to pods
-- sig-scheduling is working on priority/preemption feature in default scheduler, daemonset controller
-  can leverage this feature to make sure critical pods can run on desired nodes; otherwise, deamonset
-  controller has to add preemption logic itself
-
-Implementation-wise, daemonset controller will use node affinity feature to schedule pods. For large
-cluster, it takes quite a few minutes; but Kubernetes chooses to stay with that, and will optimize
-it later.
-
-*Update on 10/04/2018, v1.12*
-
-DaemonSet pods, which used to be scheduled by the DaemonSet controller, will be scheduled by the
-default scheduler in 1.12. This change allows DaemonSet pods to enjoy all the scheduling features of
-the default scheduler.
-
-*References*
-
-- [schedule ds pod by scheduler design doc](https://github.com/kubernetes/community/blob/01a70cd13341130a0f0206e264e5a32a011ae371/contributors/design-proposals/scheduling/schedule-DS-pod-by-scheduler.md)
-- https://github.com/kubernetes/kubernetes/issues/42002
-- https://docs.google.com/document/d/1v7hsusMaeImQrOagktQb40ePbK6Jxp1hzgFB9OZa_ew/edit
-
-## node affinity
-
-*Date: 05/11/2017, v1.6*
+- *Date: 05/11/2017, v1.6*
 
 Compared with pod affinity feature, node affinity is relatively easy. It has three variants:
 - RequiredDuringSchedulingRequiredDuringExecution
@@ -569,9 +492,9 @@ details, see experiments/scheduling.
 - [node affinity design doc](https://github.com/kubernetes/community/blob/release-1.6/contributors/design-proposals/nodeaffinity.md)
 - https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 
-## pod affinity/anti-affinity
+## (large) pod affinity/anti-affinity
 
-*Date: 04/03/2017, v1.6*
+- *Date: 04/03/2017, v1.6*
 
 One of the core ideas of pod affinity/anti-affinity is `topologyKey`: it's just a fancy term for a
 node label, which represents topological domain, i.e. same node, same rack, same zone, same power
@@ -652,7 +575,7 @@ There are a couple of takeaways from the design proposal:
 
 - [pod affinity/anti-affinity design doc](https://github.com/kubernetes/community/blob/release-1.6/contributors/design-proposals/podaffinity.md)
 
-## taint, toleration and dedicated nodes
+## (large) taint, toleration and dedicated nodes
 
 *Date: 06/22/2018, v1.10, stable*
 
@@ -671,7 +594,110 @@ Future work:
 
 - [taint toleration dedicated design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/scheduling/taint-toleration-dedicated.md)
 
-## scheduler equivalence class
+## (medium) pod priority quota
+
+- *Date: 06/23/2018, v1.11*
+- *Date: 06/29/2019, v1.15, beta*
+
+Apart from priority API design above, a new design, priority resource quota is added (as part of the
+ResourceQuota API). Since we already have priority field in Pod spec, Pods can now be classified
+into different priority classes.
+
+We would like to be able to create quota for various priority classes in order to manage cluster
+resources better and limit abuse scenarios. The link below has detailed design and user story; in
+short, the existing `scope` field in ResourceQuota API will be extended to consider pod priority.
+The resource quota scope is used to filter objects matching the quota, so naturally, we add the
+priority info into quota scope so it will match pods of specific priority, etc.
+
+*Update on 06/29/2019, v1.15*
+
+The design has changed to use `scopeSelector` in `ResourceQuota`, e.g.
+
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pod-priority
+spec:
+  hard:
+    pods: "2"
+  scopeSelector:
+    matchExpressions:
+    - operator: In
+      scopeName: PriorityClass
+      values:
+      - pod-priority
+```
+
+*References*
+
+- [pod priority resource quota design doc](https://github.com/kubernetes/community/blob/99e4e741f8c488e427e6b8398b0cf55c6c8ad306/contributors/design-proposals/scheduling/pod-priority-resourcequota.md)
+
+## (medium) scheduler extender
+
+- *Date: 08/03/2018, v1.11*
+
+When scheduling a pod, the extender allows an external process to filter, prioritize nodes, as well
+as preempt pods on nodes. Three separate http/https calls are issued to the extender:
+- one for `filter`
+- one for `prioritize`
+- one for `preempt`
+
+Additionally, the extender can choose to bind the pod to apiserver by implementing the `bind` action.
+Note the design doc is a bit outdated, it doesn't mention the `preempt` action.
+
+*References*
+
+- [scheduler extender design doc](https://github.com/kubernetes/community/blob/184c105667bd340fdb8a3dfaabe9a7a1d0346988/contributors/design-proposals/scheduling/scheduler_extender.md)
+
+## (medium) schedule daemonset pod by default scheduler
+
+- *Date: 03/23/2018, v1.9, design*
+- *Date: 10/04/2018, v1.12, beta*
+- *Date: 12/09/2019, v1.17, stable*
+
+As of 1.9, Kubernetes daemonset controller contains scheduling logic; it uses scheduler logic to
+determine node feasibility (e.g. PodFitHosts), and directly set `pod.spec.hostName`, which bypasses
+default scheduler. The reason for this origial design is that:
+- run on every node is a special scheduling case and scheduler is rather simple at that point
+- it is common to run daemonset even when node is not ready or scheduler is not running; coding the
+  scheduling logic into daemonset greatly simplifies things
+
+There was discussion to move scheduling logic from daemonset into scheduler, but was then rejected
+because of two problems:
+- scheduler can be swapped out; how do we make sure replacement scheduler work as expected for daemonset
+- how to solve the problem where critical pods must run on nodes even if nodes are not ready
+
+The issue was closed, but was then later brought up again, because as mentioned in the proposal, this
+design (scheduling logic in daemonset) has introduced a lot of problems, mostly due to increasingly
+complicated scheduler primitives. The solutions to the above problems:
+- there is a lot of potential ways for cluster admin to break things: broken replacement scheduler
+  is just one of them. The plan is probably to provide scheduler conformance test to make sure
+  replacement scheduler works as expected
+- to make sure critical pods can land on unready nodes, unready nodes will be tainted with certain
+  taints; and daemonset controller is responsible to add toleration to pods
+- sig-scheduling is working on priority/preemption feature in default scheduler, daemonset controller
+  can leverage this feature to make sure critical pods can run on desired nodes; otherwise, deamonset
+  controller has to add preemption logic itself
+
+Implementation-wise, daemonset controller will use node affinity feature to schedule pods. For large
+cluster, it takes quite a few minutes; but Kubernetes chooses to stay with that, and will optimize
+it later.
+
+*Update on 10/04/2018, v1.12*
+
+DaemonSet pods, which used to be scheduled by the DaemonSet controller, will be scheduled by the
+default scheduler in 1.12. This change allows DaemonSet pods to enjoy all the scheduling features of
+the default scheduler.
+
+*References*
+
+- [schedule ds pod by scheduler design doc](https://github.com/kubernetes/community/blob/01a70cd13341130a0f0206e264e5a32a011ae371/contributors/design-proposals/scheduling/schedule-DS-pod-by-scheduler.md)
+- [graduate schedule daemonset pods to ga KEP link](https://github.com/kubernetes/enhancements/blob/1bad2ecb356323429a6ac050f106af4e1e803297/keps/sig-scheduling/20191011-graduate-schedule-daemonset-pods-to-ga.md)
+- https://github.com/kubernetes/kubernetes/issues/42002
+- https://docs.google.com/document/d/1v7hsusMaeImQrOagktQb40ePbK6Jxp1hzgFB9OZa_ew/edit
+
+## (medium) scheduler equivalence class
 
 - *Date: 06/23/2018, v1.10, alpha*
 - *Date: 10/05/2018, v1.12, alpha*
@@ -715,9 +741,9 @@ usage and uses r/w lock instead of mutex lock to improve performance.
 
 - [scheduler equivalence class design doc](https://github.com/kubernetes/community/blob/d3879c1610516ca26f2d6c5e1cd3f4d392fb35ec/contributors/design-proposals/scheduling/scheduler-equivalence-class.md)
 
-## scheduler policy via configmap
+## (small) scheduler policy via configmap
 
-*Date: 06/13/2018, v1.10*
+- *Date: 06/13/2018, v1.10*
 
 The feature allows kubernetes scheduler to pick up its config from configmap. The proposal choose to
 use configmap (instead of reading config from local config  file), because this makes it easy to run
@@ -730,7 +756,7 @@ design doc is to use a sidecar to pick up the configmap.
 - https://docs.google.com/document/d/19AKH6V6ejOeIvyGtIPNvRMR4Yi_X8U3Q1zz2fgTNhvM/edit
 - https://github.com/kubernetes/features/issues/374
 
-## per-pod-configurable eviction behavior
+## (small) per-pod-configurable eviction behavior
 
 - *Date: 04/03/2017, v1.6, alpha*
 - *Date: 06/29/2019, v1.15, beta*
@@ -771,9 +797,22 @@ added by the `DefaultTolerationSeconds` admission controller.
 
 - https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/#taint-based-evictions
 
-## scheduler binding
+## (small) predicates ordering
 
-*Date: 07/01/2018, v1.11*
+- *Date: 10/32/2017*
+
+The primary motivation for predicates ordering is performance, i.e. by computing the most restrictive
+predicates first, we can avoid unnecessary predicates.
+
+The proposal proposes two ordering types:
+- Static ordering, where predicates ordering is set statically in scheduler
+- End-user ordering, where user can specify predicates order in scheduler config (override static ordering)
+
+- [predicates ordering design doc](https://github.com/kubernetes/community/blob/a4a1d2f561eac609403f0db7d31d764daaea3b00/contributors/design-proposals/scheduling/predicates-ordering.md)
+
+## (small) scheduler binding
+
+- *Date: 07/01/2018, v1.11*
 
 As of v1.11, scheduler selects all pods whose status is not Succeeded or PodFailed:
 
@@ -803,11 +842,44 @@ function, it will create a `Binding` objects (v1.Binding or pod/binding; the for
 in favor of pod subresource). In pod registry, apiserver will extract pod and binding object, and set
 pod node name based on binding object, see `pkg/registry/core/pod/storage`.
 
-# PRs
+## (deprecated) rescheduler for critical pods
+
+- *Date: 07/20/2017, v1.7*
+- *Date: 06/14/2018, v1.10, deprecated*
+
+Rescheduler for critical pods is a component to re-schedule pending pods to other nodes, or shuffle
+existing running pods to improve server utilizations. As of kubernetes 1.7, this is not a general
+component; it is primarily used to make sure critical addon pods keep running. There is another
+rescheduler called `descheduler` which works differently; it proactively rescheduless all pods in
+the cluster. To benefit from rescheduler for critical pods, there are three requirements:
+- pods must run in `kube-system` namespace (configurable)
+- have the `scheduler.alpha.kubernetes.io/critical-pod` annotation set to empty string
+- have the PodSpec's tolerations field set to `[{"key":"CriticalAddonsOnly", "operator":"Exists"}]`
+
+Internally, rescheduler lists all unschedulable pods, and finds pods with the above annotation. For
+all such unschedulable critical pods, it finds suitable nodes for them. Before assigning the pod to
+selected nodes, rescheduler will taints the node with `CriticalAddonsOnly` to make room for the
+critical pods. The taint will be removed once the add-on is successfully scheduled. The above
+algothrim requires both annotation and taints to present for rescheduler to work.
+
+*Update on 06/14/2018, v1.10, deprecated*
+
+Rescheduler is marked deprecated in favor of priority/preemption feature in default scheduler.
+Rescheduler will be completely deprecated once scheduling logic in daemonset controller is removed
+and its pods are scheduled via default scheduler to leverage preemption feature; until then, we
+still need rescheduler to shuffle pods for daemonset controller.
+
+*References*
+
+- [rescheduling for critical pods proposal](https://github.com/kubernetes/community/blob/b8d4a1b389bd105d23ca496b1c67febe1e2efdf2/contributors/design-proposals/scheduling/rescheduling-for-critical-pods.md)
+- https://github.com/kubernetes/contrib/tree/master/rescheduler
+- https://kubernetes.io/docs/tasks/administer-cluster/guaranteed-scheduling-critical-addon-pods/
+
+# Implementation
 
 ## [scheduling with volume count](https://github.com/kubernetes/kubernetes/pull/60525)
 
-*Date: 04/02/2018, v1.10*
+- *Date: 04/02/2018, v1.10*
 
 The feature description is "Balanced resource allocation priority to include volume count on nodes".
 Right now, only cpu, memory utilization are considered in `balanced_resource_allocation` priority,

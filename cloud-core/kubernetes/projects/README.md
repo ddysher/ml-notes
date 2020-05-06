@@ -3,86 +3,87 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Networking](#networking)
-  - [cni-genie](#cni-genie)
+  - [antrea](#antrea)
   - [multus-cni](#multus-cni)
   - [metallb](#metallb)
   - [keepalived-vip](#keepalived-vip)
-  - [service-loadbalancer](#service-loadbalancer)
   - [ip-masq-agent](#ip-masq-agent)
   - [ingress](#ingress)
   - [kube-router](#kube-router)
   - [external-dns](#external-dns)
   - [amazon-vpc-cni](#amazon-vpc-cni)
-  - [antrea](#antrea)
+  - [cni-ipvlan-vpc-k8s](#cni-ipvlan-vpc-k8s)
+  - [(deprecated) service-loadbalancer](#deprecated-service-loadbalancer)
+  - [(deprecated) cni-genie](#deprecated-cni-genie)
+- [Storage](#storage)
+  - [external-storage](#external-storage)
+  - [trident](#trident)
 - [Security](#security)
   - [audit2rbac](#audit2rbac)
   - [kyverno](#kyverno)
   - [k-rail](#k-rail)
   - [polaris](#polaris)
-- [Storage](#storage)
-  - [external-storage](#external-storage)
-  - [trident](#trident)
-- [Apps](#apps)
-  - [service-catalog](#service-catalog)
-  - [kubeapps](#kubeapps)
-  - [kruise](#kruise)
-  - [application](#application)
-  - [k8s-appcontroller](#k8s-appcontroller)
-- [Developer](#developer)
-  - [draft](#draft)
-  - [codegen](#codegen)
-  - [metacontroller](#metacontroller)
+  - [kube-rbac-proxy](#kube-rbac-proxy)
+- [Scheduling](#scheduling)
+  - [kube-batch](#kube-batch)
+  - [volcano](#volcano)
+  - [(deprecated) resorcerer](#deprecated-resorcerer)
+- [Virtualization](#virtualization)
+  - [kubevirt](#kubevirt)
+  - [virtlet](#virtlet)
+- [Node & Resource](#node--resource)
+  - [gpushare](#gpushare)
+  - [kubegpu](#kubegpu)
+  - [virtual-kubelet](#virtual-kubelet)
+  - [node problem detector](#node-problem-detector)
+  - [krustlet](#krustlet)
+- [Cluster & DR](#cluster--dr)
+  - [kubespray](#kubespray)
+  - [kops](#kops)
+  - [kubeadm](#kubeadm)
+  - [veloro](#veloro)
+  - [kargo vs. kops. vs kubeadm](#kargo-vs-kops-vs-kubeadm)
+  - [metal3](#metal3)
+  - [(deprecated) kaptaind](#deprecated-kaptaind)
+  - [(deprecated) kismatic](#deprecated-kismatic)
 - [Insight](#insight)
   - [k8s-prometheus-adaptor](#k8s-prometheus-adaptor)
   - [addon-resizer](#addon-resizer)
   - [cluster autoscaler](#cluster-autoscaler)
-- [Node & Resource](#node--resource)
-  - [kubegpu](#kubegpu)
-  - [gpushare (aliyun)](#gpushare-aliyun)
-  - [node problem detector](#node-problem-detector)
-- [Scheduling](#scheduling)
-  - [resorcerer](#resorcerer)
-  - [kube-batch](#kube-batch)
-  - [volcano](#volcano)
-- [Virtualization](#virtualization)
-  - [kubevirt](#kubevirt)
-  - [virtlet](#virtlet)
-- [Cluster](#cluster)
-  - [kismatic](#kismatic)
-  - [kargo](#kargo)
-  - [kops](#kops)
-  - [kargo vs. kops](#kargo-vs-kops)
-  - [kaptaind](#kaptaind)
-- [Templating](#templating)
+- [Application](#application)
+  - [operatorkit](#operatorkit)
+  - [service-catalog](#service-catalog)
+  - [kubeapps](#kubeapps)
+  - [kruise](#kruise)
+  - [application](#application)
+  - [(deprecated) k8s-appcontroller](#deprecated-k8s-appcontroller)
+- [Developer](#developer)
+  - [draft](#draft)
+  - [codegen](#codegen)
+  - [metacontroller](#metacontroller)
+- [Templating & Packaging](#templating--packaging)
   - [helm](#helm)
-  - [ksonnet](#ksonnet)
   - [kustomize](#kustomize)
-  - [Templates](#templates)
-- [Nodeless](#nodeless)
-  - [virtual-kubelet](#virtual-kubelet)
-- [TODOs](#todos)
+  - [kpt](#kpt)
+  - [(deprecated) ksonnet](#deprecated-ksonnet)
+- [References](#references)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Networking
 
-## cni-genie
+## antrea
 
-*Date: 08/19/2017*
+*Date: 11/26/2019, v0.1*
 
-[cni-genie](https://github.com/Huawei-PaaS/CNI-Genie) is a solution from huawei which enables:
-- multiple cni plugins: user can choose which plugin to use when launching pod via annotation;
-  typically, different network (or plugin) uses different cidr
-- multiple IP addresses: user can request IP addresses from multiple cni
-- select ideal network: cni-genie can help user choose a cni plugin to use based on information
-  like per network load
+[antrea](https://github.com/vmware-tanzu/antrea) is a Kubernetes network solution from VMWare, it
+implements:
+- Pod networking using OVS
+- Network Security
+- ClusterIP using OVS (planned)
 
-Essentially, it is a proxy to underline cni.
-
-*References*
-
-- [high level design](https://github.com/Huawei-PaaS/CNI-Genie/blob/8a35c2c0fe05ecfd967be6952a9d5154bf071655/docs/HLD.md)
-- [feature set](https://github.com/Huawei-PaaS/CNI-Genie/blob/8a35c2c0fe05ecfd967be6952a9d5154bf071655/docs/CNIGenieFeatureSet.md)
+For more information, refer to
+- [archtecture guide](https://github.com/vmware-tanzu/antrea/blob/v0.1.0/docs/architecture.md)
 
 ## multus-cni
 
@@ -144,16 +145,6 @@ then backend pods, which is two bounce.
 A vip is given to a set of nodes; when user connects to the vip, traffic will be forwarded to backing
 pods.
 
-## service-loadbalancer
-
-*Date: 05/13/2017, kubernetes v1.6, deprecated*
-
-[service loadbalancer](https://github.com/kubernetes/contrib/tree/master/service-loadbalancer) is
-deprecated in favor of ingress controller. At its core, service loadbalancer watches the api for
-services and endpoints, and reload haproxy's configuration (can be other loadbalancer as well, like
-F5). However, unlike ingress, there is no API for controlling its behavior, and it lacks a lot of
-features seen in ingress.
-
 ## ip-masq-agent
 
 link: [ip-masq-agent](./ip-masq-agent)
@@ -190,20 +181,48 @@ a couple of ip/route rules setup at the host side.
 
 To speed up IP allocation, a warm-up pool is maintained on each node.
 
-There is a similar [CNI from lyft](https://github.com/lyft/cni-ipvlan-vpc-k8s) using IPvlan L2 mode.
+## cni-ipvlan-vpc-k8s
 
-## antrea
+This [CNI from Lyft](https://github.com/lyft/cni-ipvlan-vpc-k8s) is similar to amazon-vpc-cni, but
+instead uses IPvlan L2 mode.
 
-*Date: 11/26/2019, v0.1*
+## (deprecated) service-loadbalancer
 
-[antrea](https://github.com/vmware-tanzu/antrea) is a Kubernetes network solution from VMWare, it
-implements:
-- Pod networking using OVS
-- Network Security
-- ClusterIP using OVS (planned)
+*Date: 05/13/2017, kubernetes v1.6, deprecated*
 
-For more information, refer to
-- [archtecture guide](https://github.com/vmware-tanzu/antrea/blob/v0.1.0/docs/architecture.md)
+[service loadbalancer](https://github.com/kubernetes/contrib/tree/master/service-loadbalancer) is
+deprecated in favor of ingress controller. At its core, service loadbalancer watches the api for
+services and endpoints, and reload haproxy's configuration (can be other loadbalancer as well, like
+F5). However, unlike ingress, there is no API for controlling its behavior, and it lacks a lot of
+features seen in ingress.
+
+## (deprecated) cni-genie
+
+*Date: 08/19/2017*
+
+[cni-genie](https://github.com/Huawei-PaaS/CNI-Genie) is a solution from huawei which enables:
+- multiple cni plugins: user can choose which plugin to use when launching pod via annotation;
+  typically, different network (or plugin) uses different cidr
+- multiple IP addresses: user can request IP addresses from multiple cni
+- select ideal network: cni-genie can help user choose a cni plugin to use based on information
+  like per network load
+
+Essentially, it is a proxy to underline cni.
+
+*References*
+
+- [high level design](https://github.com/Huawei-PaaS/CNI-Genie/blob/8a35c2c0fe05ecfd967be6952a9d5154bf071655/docs/HLD.md)
+- [feature set](https://github.com/Huawei-PaaS/CNI-Genie/blob/8a35c2c0fe05ecfd967be6952a9d5154bf071655/docs/CNIGenieFeatureSet.md)
+
+# Storage
+
+## external-storage
+
+link: [external-storage](./external-storage)
+
+## trident
+
+link: [trident](./trident)
 
 # Security
 
@@ -248,17 +267,438 @@ polaris contains three independent components:
 - an admission controller to ensure policy
 - a command line to test YAML configuration
 
-# Storage
+## kube-rbac-proxy
 
-## external-storage
+*Date: 04/30/2020, alpha*
 
-link: [external-storage](./external-storage)
+[One-line introduction](https://github.com/brancz/kube-rbac-proxy):
 
-## trident
+> The kube-rbac-proxy is a small HTTP proxy for a single upstream, that can perform RBAC authorization
+> against the Kubernetes API using SubjectAccessReview.
 
-link: [trident](./trident)
+Motivation:
 
-# Apps
+> I developed this proxy in order to be able to protect Prometheus metrics endpoints. In a scenario,
+> where an attacker might obtain full control over a Pod, that attacker would have the ability to
+> discover a lot of information about the workload as well as the current load of the respective
+> workload. This information could originate for example from the node-exporter and kube-state-metrics.
+> Both of those metric sources can commonly be found in Prometheus monitoring stacks on Kubernetes.
+
+How does it work:
+
+> On an incoming request, kube-rbac-proxy first figures out which user is performing the request.
+> The kube-rbac-proxy supports using client TLS certificates, as well as tokens. In case of a client
+> certificates, the certificate is simply validated against the configured CA. In case of a bearer
+> token being presented, the authentication.k8s.io is used to perform a TokenReview.
+
+> Once a user has been authenticated, again the authentication.k8s.io is used to perform a
+> SubjectAccessReview, in order to authorize the respective request, to ensure the authenticated
+> user has the required RBAC roles.
+
+In general, kube-rbac-proxy runs as a reverse proxy sidecar alongside the component being protected.
+There is no iptables magic: external system will call kube-rbac-proxy first, which will perform
+authN/Z and proxy traffic to upstream (usually at localhost).
+
+# Scheduling
+
+## kube-batch
+
+link: [kube-batch](./kube-batch)
+
+## volcano
+
+[volcano](https://volcano.sh) is built on top of kube-batch to provide batch scheduling. volcano's
+scheduler is a direct copy of kube-batch, with the following additions:
+- a new `Job` API (independent of core Kubernetes Job), allowing users to create a batch job directly from volcano
+  - the `Job` API provides features like multiple PodTemplate, better ErrorHandling, etc
+- a new admission controller component to validate Job resource
+- a new controller component to reconcile status, including job-controller, podgroup-controller,
+  queue-controller, garbagecollector-controller, etc
+- few additional actions and plugins, compared to kube-batch
+
+```
+$ kubectl get pods -n volcano-system
+NAME                                   READY   STATUS      RESTARTS   AGE
+volcano-admission-5bd5756f79-9lj4t     1/1     Running     0          49m
+volcano-admission-init-x2jlk           0/1     Completed   0          49m
+volcano-controllers-687948d9c8-q8fkm   1/1     Running     0          49m
+volcano-scheduler-79f569766f-rnwt6     1/1     Running     0          49m
+```
+
+## (deprecated) resorcerer
+
+*Date: 08/06/2017, no release*
+
+[resorcerer](https://github.com/openshift-demos/resorcerer) is an experimental implementation of
+VPA, i.e. to scale container resource requirements. It is a daemonset running in kubernetes cluster,
+use prometheus to retrieve container metrics, and provides rest API for users. resorcerer is very
+simple, the core of it is three APIs:
+
+```
+GET /observation/$POD/$CONTAINER?period=$PERIOD
+GET /recommendation/$POD/$CONTAINER
+POST /adjustment/$POD/$CONTAINER cpu=$CPUSEC mem=$MEMINBYTES
+```
+
+Calling the first API will execute a pre-defined query against prometheus to observe container
+resource usage. It will save the value in memory. The second API will simply return the usage data;
+and the last apply the recommendation to kubernetes (according to how it is deployed, i.e.
+deployment, standalone pod, etc).
+
+# Virtualization
+
+## kubevirt
+
+link: [kubevirt](./kubevirt)
+
+## virtlet
+
+*Date: 10/03/2018, v1.4.0*
+
+[virtlet](https://github.com/Mirantis/virtlet) is created from Mirantis.
+
+virtlet is a Kubernetes CRI implementation for running VM workloads. It uses [criproxy](https://github.com/Mirantis/criproxy)
+to proxy requests from kubelet to virtlet (in order to support multiple runtime). Note this can be
+deprecated in favor of Kubernetes 1.12 new feature `RuntimeClass`.
+
+Virtlet consists of the following components:
+- virtlet manager - implements CRI interface for virtualization and image handling
+- libvirt instance
+- tapmanager which is responsible for managing VM networking
+- vmwrapper which is responsible for setting up the environment for emulator
+- emulator, currently qemu with KVM support (with possibility to disable KVM)
+
+Note that virlet has only a single running component (deployed as daemonset):
+- qemu and libvirt are installed in `virtlet-base` dockerfile
+- virtlet manager and tapmanager are running as separate goroutines
+
+Working with virtlet is similar to regular operations in Kubernetes, you create a Pod and request
+virtlet as sandbox runtime, then a VM will be created via virtlet and its status is reported back
+in Pod status, e.g. Pod IP is the VM's IP.
+
+*References*
+
+- [introduction and comparison to other similar projects](https://www.mirantis.com/blog/virtlet-run-vms-as-kubernetes-pods/)
+- [virtlet architecture](https://github.com/Mirantis/virtlet/blob/v1.4.0/docs/architecture.md)
+- [virtlet deployment](https://github.com/Mirantis/virtlet/blob/v1.4.0/deploy/real-cluster.md)
+
+# Node & Resource
+
+## gpushare
+
+*Date: 05/02/2019*
+
+Aliyun gpushare proposes a simple extension to allow 'share' GPU resource in Kubernetes cluster, it
+consists of:
+- [a modified device plugin](https://github.com/AliyunContainerService/gpushare-device-plugin) to report GPU memory (in MiB or GiB), apart from reporting number of GPU
+- [a scheduler extender](https://github.com/AliyunContainerService/gpushare-scheduler-extender) that understands the extended GPU memory resource and allocate GPU accordingly
+
+Pod requesting GPU memory will add the following resource:
+
+```yaml
+resources:
+  limits:
+    aliyun.com/gpu-mem: 16276
+```
+
+The extension doesn't resolve the following issues:
+- application level isolation: the shema above is only used for scheduling, application should be
+  aware of using only requested memory, which will be passed in as env into application pod.
+- only GPU memory is added as extended resource, i.e. cuda cores are not considered.
+- all available GPU memory is treated the same, i.e. it doesn't differentiate different type of GPU cards.
+
+## kubegpu
+
+link: [kubegpu](./kubegpu)
+
+## virtual-kubelet
+
+- *Date: 10/03/2018, v0.6*
+- *Date: 02/14/2020, v1.2*
+
+[virtual kubelet](https://github.com/virtual-kubelet/virtual-kubelet) registers to Kubernetes as a
+'normal' node, but backed by other services. It is a Kubelet implementation that masquerades as a
+kubelet for the purposes of connecting Kubernetes to other APIs. Despite the name `virtual-kubelet`,
+it has nothing to do with vm-based virtualization (like kubevirt, virtlet); rather, it's best seen
+as a complement to serverless system.
+
+Following is a summary of how it works:
+- virtual kubelet runs as a Pod in Kubernetes cluster. The Pod registers itself as a node, and
+  watches for Pod scheduled to it. The virtual kubelet doesn't have an IP address.
+- once a Pod is scheduled to it (using node selector from user), virtual-kubelet calls external
+  provider (e.g. azure aci, hyper, aws fargate, etc) to create real containers.
+- Pod status is updated to reflect the status from external provider.
+
+The created pod/container is running in remote cluster, managed by cloud providers. virtual kubelet
+it an API bridge between Kubernetes and cloud providers - the container for user application, once
+started, has nothing to do with virtual kubelet. To use virtual-kubelet, users create Pod with
+specific taint and node-selectors, then Kubernetes & virtual-kubelet will do the rest. It's possible
+to create a multiple Pods, e.g. using Deployment, and assign them to virtual kubelet. virtual
+kubelet will create equal number of containers in cloud providers.
+
+virtual-kubelet is originated from Microsoft, and donated to CNCF as a sandbox project.
+
+*Update on 02/14/2020, v1.2*
+
+Cloud providers are moved out-of-tree, including:
+- [Admiralty Multi-Cluster Scheduler](https://github.com/admiraltyio/multicluster-scheduler)
+- Alibaba Cloud Elastic Container Instance (ECI)
+- AWS Fargate
+- Azure Batch
+- Azure Container Instances (ACI)
+- Kubernetes Container Runtime Interface (CRI)
+- Huawei Cloud Container Instance (CCI)
+- HashiCorp Nomad
+- OpenStack Zun
+
+*References*
+
+- [how virtual-kubelet works](https://github.com/virtual-kubelet/virtual-kubelet/tree/v0.6.2#how-it-works)
+- [azure aci provider (old)](https://github.com/virtual-kubelet/virtual-kubelet/blob/v0.6.2/providers/azure/README.md)
+- [azure aci provider (new)](https://github.com/virtual-kubelet/azure-aci)
+- [aws blog](https://aws.amazon.com/blogs/opensource/aws-fargate-virtual-kubelet/)
+
+## node problem detector
+
+*Date: 10/18/2017, v0.4.1*
+
+[Node problem detector](https://github.com/kubernetes/node-problem-detector) surfaces node level
+problems to kubernetes control plane. It consists of a npd and multple problem daemons. The problem
+daemons are running as goroutine right now, but will be expanded to side car in the future. Node
+problem detector is simple, but its design is comprehensive, ref [here](https://docs.google.com/document/d/1cs1kqLziG-Ww145yN6vvlKguPbQQ0psrSBnEqpy0pzE/edit).
+
+## krustlet
+
+[krustlet](https://github.com/deislabs/krustlet) is an implementation of Kubelet in Rust. Instead
+of using container, it uses WebAssembly (WASM) to run Pod, and utilizes OCI artifacts as a registry
+to store WASM artifacts.
+
+# Cluster & DR
+
+## kubespray
+
+*Date: 04/26/2017, kargo v2.1.1*
+
+[kargo](https://github.com/kubespray/kargo-cli) is a pure ansible playbook to deploy kubernetes,
+with a lot of options. To ease deployment, kargo provides a cli tool: kargo-cli; so that user
+doesn't have to interact with ansible directly.
+
+*Update on 11/07/2018, v2.7.0*
+
+kargo is moved to Kubernetes incubator and renamed [kubespray](https://github.com/kubernetes-incubator/kubespray).
+
+*References*
+
+- https://github.com/kubernetes-incubator/kargo/blob/v2.1.1/docs/getting-started.md
+
+## kops
+
+*Date: 04/26/2017, kops v1.5.3*
+
+[Kops](https://github.com/kubernetes/kops) is the `kubectl` for clusters; common commands used in
+kops are:
+
+```
+kops create cluster
+kops update cluster
+kops get clusters
+kops delete cluster
+```
+
+Kops is written in go; unlike other tools, it doesn't depend on other management platform like
+ansible. kops defines a specification similar to kubernetes, but the resource is NOT part of
+kubernetes. Below is a very brief workflow:
+
+- Run `kops create cluster`, a yaml file is created with keys like `apiVersion`, `kind`
+- Run `kops update cluster`, the yaml file is parsed and applied to cloud, e.g. aws, gce.
+
+*References*
+
+- https://github.com/kubernetes/kops/blob/1.5.3/docs/aws.md
+- https://github.com/kubernetes/kops/blob/1.5.3/docs/philosophy.md
+- https://github.com/kubernetes/kops/blob/1.5.3/docs/boot-sequence.md
+
+## kubeadm
+
+*Date: 04/13/2020*
+
+[kubeadm](https://github.com/kubernetes/kubeadm) is a tool built to create Kubernetes clusters.
+Note kubeadm is not a complete solution for creating a cluster, it is meant to be used by other
+tools. In addition, to use kubeadm, users need to do extra preparation, e.g. download kubelet,
+setup CNI networking, etc.
+
+The set of commands in kubeadm include:
+- kubeadm init to bootstrap the initial Kubernetes control-plane node.
+- kubeadm join to bootstrap a Kubernetes worker node or an additional control plane node, and join it to the cluster.
+- kubeadm upgrade to upgrade a Kubernetes cluster to a newer version.
+- kubeadm reset to revert any changes made to this host by kubeadm init or kubeadm join.
+
+## veloro
+
+https://github.com/vmware-tanzu/velero
+
+## kargo vs. kops. vs kubeadm
+
+Quick summary:
+- Kargo runs on bare metal and most clouds, using Ansible as its substrate for provisioning and orchestration.
+- Kops performs the provisioning and orchestration itself, and as such is less flexible in deployment platforms.
+- Kubeadm's scope is limited to the local node filesystem and the Kubernetes API, and it is intended to be a
+  composable building block of higher level tools.
+
+For people with familiarity with Ansible, existing Ansible deployments or the desire to run a
+Kubernetes cluster across multiple platforms, Kargo is a good choice. Kops, however, is more tightly
+integrated with the unique features of the clouds it supports so it could be a better choice if you
+know that you will only be using one platform for the foreseeable future.
+
+## metal3
+
+Metal3 (MetalKube) allows user to manage bare metal hosts for Kubernetes. Metal3 runs on Kubernetes
+and is managed through Kubernetes interfaces. Under the hood, it will leverage projects like OpenStack
+Ironic for host management.
+
+Official Introduction:
+
+> There are a number of great open source tools for bare metal host provisioning, including Ironic. [Metal3.io](https://metal3.io/)
+> aims to build on these technologies to provide a Kubernetes native API for managing bare metal hosts
+> via a provisioning stack that is also running on Kubernetes. We believe that Kubernetes Native
+> Infrastructure, or managing your infrastructure just like your applications, is a powerful next
+> step in the evolution of infrastructure management.
+>
+> The Metal3.io project is also building integration with the Kubernetes cluster-api project, allowing
+> Metal3.io to be used as an infrastructure backend for Machine objects from the Cluster API.
+
+Metal3 contains multiple components:
+- [cluster-api-provider-metal3](https://github.com/metal3-io/cluster-api-provider-metal3)
+- [baremetal-operator](https://github.com/metal3-io/baremetal-operator)
+
+**cluster-api-provider-metal3**
+
+The first component is cluster-api-provider-metal3, which is an implementation of the Machine
+Actuator interface defined by the cluster-api project. This actuator reacts to changes to Machine
+objects (CRD defined in cluster-api) and acts as a client of the BareMetalHost (CRD defined in
+Metal3).
+
+A full illustration of the architecture can be found [here](https://github.com/metal3-io/cluster-api-provider-metal3/blob/v0.3.1/docs/architecture.md).
+
+**baremetal-operator**
+
+The baremetal-operator is a controller for a new custom resource, BareMetalHost. This custom resource
+represents an inventory of known (configured or automatically discovered) bare metal hosts. When a
+Machine is created the Bare Metal Actuator will claim one of these hosts to be provisioned as a new
+Kubernetes node. In response to BareMetalHost updates, the controller will perform bare metal host
+provisioning actions as necessary to reach the desired state. The creation of the BareMetalHost
+inventory can be done in two ways:
+- Manually via creating BareMetalHost objects.
+- Optionally, automatically created via a bare metal host discovery process.
+
+The operator manages a set of tools for controlling the power on the host, monitoring the host status,
+and provisioning images to the host. These tools run inside the pod with the operator, and do not
+require any configuration by the user.
+
+To simply put, it's the operator in charge of definitions of physical hosts, containing information
+about how to reach the Out of Band management controller (reaching the server even if it's powered
+down, either via dedicated or shared nic), URL of image to provision, plus other properties related
+with hosts being used for provisioning instances.
+
+## (deprecated) kaptaind
+
+*Date: 09/14/2017*
+
+[kaptaind](https://github.com/kaptaind/kaptaind) is a simple tool to backup & restore kubernetes
+cluster snapshots. A broker component is running as api server, accepting export & import (i.e.
+backup & restore) tasks. An agent is typically running in kubernetes cluster and asks for import
+task. The export & import process is copy/past yaml files.
+
+## (deprecated) kismatic
+
+*Date: 04/26/2017, v 1.3.1*
+
+[kismatic](https://github.com/apprenda/kismatic) is a set of production-ready defaults and best
+practice tools for creating enterprise-tuned Kubernetes clusters. It is based on golang and ansible,
+where ansible playbook is launched via golang (os.exec). kismatic installation flow:
+
+```
+$ kismatic install plan
+$ kismatic install validate
+$ kismatic install apply
+```
+
+- `plan`: kismatic creates a config yaml file
+- `validate`: check hosts requirements
+- `apply`: actually install kubernetes
+
+Between 'plan' and 'validate', admin needs to provision hosts manually. kismatic is not just about
+cluster deployment, it also does simple management, like installing kubedash, ingress. During
+installation, kismatic does hosts validation, kubernetes smoke test.
+
+*References*
+
+- https://github.com/apprenda/kismatic/blob/v1.3.1/docs/INTENT.md
+- https://github.com/apprenda/kismatic/blob/v1.3.1/docs/INSTALL.md
+- https://github.com/apprenda/kismatic/blob/v1.3.1/docs/PLAN.md
+- https://github.com/apprenda/kismatic/blob/v1.3.1/docs/PROVISION.md
+
+# Insight
+
+## k8s-prometheus-adaptor
+
+*Date: 01/14/2018*
+
+The project is an implementation of Kubernetes custom metrics API, using the framework [here](https://github.com/kubernetes-incubator/custom-metrics-apiserver).
+Basically, it registers itself as a third-party API service. Kubernetes core API server will proxy
+request to it, i.e. client sends requst to endpoint `/apis/custom-metrics.metrics.k8s.io/v1beta1`
+just like other standard requests; kubernetes API server then proxies the request to this adapter,
+which translates the request to prometheus query language and return the metrics result.
+
+*References*
+
+- [deploy adaptor](https://github.com/DirectXMan12/k8s-prometheus-adapter/tree/master/deploy)
+
+## addon-resizer
+
+*Date: 08/06/2017, Kubernetes v1.7, no release*
+
+[addon-resizer](https://github.com/kubernetes/autoscaler/tree/master/addon-resizer) is a container
+which watches another container in a deployment, and vertically scales the dependent container up
+and down (only one container).  It is usually deployed as a sidecar or as another deployment.
+addon-resizer is also called nanny, i.e. babysitter.
+
+**workflow**
+
+addon-resizer polls kubernetes every configurable (default 10s) interval to decide if scaling is
+needed for its dependent container. At each bookkeeping, it retrieves number of nodes from kubernetes,
+and uses the information, along with command line flags, to estimate a resource requirements. If the
+resource requirement is different from current value, it scales the container.
+
+## cluster autoscaler
+
+*Date: 08/06/2017, Kubernetes v1.7, project status beta*
+
+[Cluster Autoscaler](https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler) is a
+standalone program that adjusts the size of a Kubernetes cluster to meet the current needs. It
+assumes kubernetes nodes are running undera cloud provider node group. Cluster Autoscaler has
+extensive documentation, ref [here](https://github.com/kubernetes/autoscaler/tree/cluster-autoscaler-0.6.0/cluster-autoscaler).
+
+# Application
+
+## operatorkit
+
+*Date: 07/28/2017*
+
+OperatorKit aims to unify the effort for implementing operators. Scopes of the project includes:
+- setup, configuration, and validation of a CLI framework
+- common logging handlers
+- setup of common clients such as for CRD APIs, kube-apiserver API, leader election and analytics
+- code for easy leadership election management
+- easy management of k8s resources, such as reconciliation loops for CRDs and utility function to set up common cluster resources possibly at a later stage
+- boilerplate code for registering, validating and configuring CRD specs
+- resource monitoring, providing utilities to handle channels, decoding, caching and error handling
+- enforce and supply best practices for disaster recovery, e.g. if the operator is on a rebooting node
+- allow easy exposure of APIs if the operator wants to export data
+
+*References*
+
+- [operatorkit design doc](https://docs.google.com/document/d/1NJhFcNezJyLM952eaYVcdfIQFQYWsAx4oTaA82-Frdk/edit)
 
 ## service-catalog
 
@@ -322,7 +762,7 @@ spec:
 However, it does aggregate a bit information (only a little), primarily object status. In another
 word, the CRD is mainly used to display application-level information.
 
-## k8s-appcontroller
+## (deprecated) k8s-appcontroller
 
 *Date: 09/12/2019*
 
@@ -404,258 +844,7 @@ link: [codegen](./codegen)
 developyer only needs to write hooks for processing registered events (with CRDs), and metacontroller
 handles the rest.
 
-# Insight
-
-## k8s-prometheus-adaptor
-
-*Date: 01/14/2018*
-
-The project is an implementation of Kubernetes custom metrics API, using the framework [here](https://github.com/kubernetes-incubator/custom-metrics-apiserver).
-Basically, it registers itself as a third-party API service. Kubernetes core API server will proxy
-request to it, i.e. client sends requst to endpoint `/apis/custom-metrics.metrics.k8s.io/v1beta1`
-just like other standard requests; kubernetes API server then proxies the request to this adapter,
-which translates the request to prometheus query language and return the metrics result.
-
-*References*
-
-- [deploy adaptor](https://github.com/DirectXMan12/k8s-prometheus-adapter/tree/master/deploy)
-
-## addon-resizer
-
-*Date: 08/06/2017, Kubernetes v1.7, no release*
-
-addon-resizer is a container which watches another container in a deployment, and vertically scales
-the dependent container up and down (only one container).  It is usually deployed as a sidecar or as
-another deployment. addon-resizer is also called nanny, i.e. babysitter.
-
-**workflow**
-
-addon-resizer polls kubernetes every configurable (default 10s) interval to decide if scaling is
-needed for its dependent container. At each bookkeeping, it retrieves number of nodes from kubernetes,
-and uses the information, along with command line flags, to estimate a resource requirements. If the
-resource requirement is different from current value, it scales the container.
-
-## cluster autoscaler
-
-*Date: 08/06/2017, Kubernetes v1.7, project status beta*
-
-Cluster Autoscaler is a standalone program that adjusts the size of a Kubernetes cluster to meet the
-current needs. It assumes kubernetes nodes are running undera cloud provider node group. Cluster
-Autoscaler has extensive documentation, ref [here](https://github.com/kubernetes/autoscaler/tree/cluster-autoscaler-0.6.0/cluster-autoscaler).
-
-# Node & Resource
-
-## kubegpu
-
-link: [kubegpu](./kubegpu)
-
-## gpushare (aliyun)
-
-*Date: 05/02/2019*
-
-Aliyun gpushare proposes a simple extension to allow 'share' GPU resource in Kubernetes cluster, it
-consists of:
-- [a modified device plugin](https://github.com/AliyunContainerService/gpushare-device-plugin) to report GPU memory (in MiB or GiB), apart from reporting number of GPU
-- [a scheduler extender](https://github.com/AliyunContainerService/gpushare-scheduler-extender) that understands the extended GPU memory resource and allocate GPU accordingly
-
-Pod requesting GPU memory will add the following resource:
-
-```yaml
-resources:
-  limits:
-    aliyun.com/gpu-mem: 16276
-```
-
-The extension doesn't resolve the following issues:
-- application level isolation: the shema above is only used for scheduling, application should be
-  aware of using only requested memory, which will be passed in as env into application pod.
-- only GPU memory is added as extended resource, i.e. cuda cores are not considered.
-- all available GPU memory is treated the same, i.e. it doesn't differentiate different type of GPU cards.
-
-## node problem detector
-
-*Date: 10/18/2017, v0.4.1*
-
-[Node problem detector](https://github.com/kubernetes/node-problem-detector) surfaces node level
-problems to kubernetes control plane. It consists of a npd and multple problem daemons. The problem
-daemons are running as goroutine right now, but will be expanded to side car in the future. Node
-problem detector is simple, but its design is comprehensive, ref [here](https://docs.google.com/document/d/1cs1kqLziG-Ww145yN6vvlKguPbQQ0psrSBnEqpy0pzE/edit).
-
-# Scheduling
-
-## resorcerer
-
-*Date: 08/06/2017, no release*
-
-[resorcerer](https://github.com/openshift-demos/resorcerer) is an experimental implementation of
-VPA, i.e. to scale container resource requirements. It is a daemonset running in kubernetes cluster,
-use prometheus to retrieve container metrics, and provides rest API for users. resorcerer is very
-simple, the core of it is three APIs:
-
-```
-GET /observation/$POD/$CONTAINER?period=$PERIOD
-GET /recommendation/$POD/$CONTAINER
-POST /adjustment/$POD/$CONTAINER cpu=$CPUSEC mem=$MEMINBYTES
-```
-
-Calling the first API will execute a pre-defined query against prometheus to observe container
-resource usage. It will save the value in memory. The second API will simply return the usage data;
-and the last apply the recommendation to kubernetes (according to how it is deployed, i.e.
-deployment, standalone pod, etc).
-
-## kube-batch
-
-link: [kube-batch](./kube-batch)
-
-## volcano
-
-[volcano](https://volcano.sh) is built on top of kube-batch to provide batch scheduling. volcano's
-scheduler is a direct copy of kube-batch, with the following additions:
-- a new `Job` API (independent of core Kubernetes Job), allowing users to create a batch job directly from volcano
-  - the `Job` API provides features like multiple PodTemplate, better ErrorHandling, etc
-- a new admission controller component to validate Job resource
-- a new controller component to reconcile status, including job-controller, podgroup-controller,
-  queue-controller, garbagecollector-controller, etc
-- few additional actions and plugins, compared to kube-batch
-
-```
-$ kubectl get pods -n volcano-system
-NAME                                   READY   STATUS      RESTARTS   AGE
-volcano-admission-5bd5756f79-9lj4t     1/1     Running     0          49m
-volcano-admission-init-x2jlk           0/1     Completed   0          49m
-volcano-controllers-687948d9c8-q8fkm   1/1     Running     0          49m
-volcano-scheduler-79f569766f-rnwt6     1/1     Running     0          49m
-```
-
-# Virtualization
-
-## kubevirt
-
-link: [kubevirt](./kubevirt)
-
-## virtlet
-
-*Date: 10/03/2018, v1.4.0*
-
-[virtlet](https://github.com/Mirantis/virtlet) is created from Mirantis.
-
-virtlet is a Kubernetes CRI implementation for running VM workloads. It uses [criproxy](https://github.com/Mirantis/criproxy)
-to proxy requests from kubelet to virtlet (in order to support multiple runtime). Note this can be
-deprecated in favor of Kubernetes 1.12 new feature `RuntimeClass`.
-
-Virtlet consists of the following components:
-- virtlet manager - implements CRI interface for virtualization and image handling
-- libvirt instance
-- tapmanager which is responsible for managing VM networking
-- vmwrapper which is responsible for setting up the environment for emulator
-- emulator, currently qemu with KVM support (with possibility to disable KVM)
-
-Note that virlet has only a single running component (deployed as daemonset):
-- qemu and libvirt are installed in `virtlet-base` dockerfile
-- virtlet manager and tapmanager are running as separate goroutines
-
-Working with virtlet is similar to regular operations in Kubernetes, you create a Pod and request
-virtlet as sandbox runtime, then a VM will be created via virtlet and its status is reported back
-in Pod status, e.g. Pod IP is the VM's IP.
-
-*References*
-
-- [introduction and comparison to other similar projects](https://www.mirantis.com/blog/virtlet-run-vms-as-kubernetes-pods/)
-- [virtlet architecture](https://github.com/Mirantis/virtlet/blob/v1.4.0/docs/architecture.md)
-- [virtlet deployment](https://github.com/Mirantis/virtlet/blob/v1.4.0/deploy/real-cluster.md)
-
-# Cluster
-
-## kismatic
-
-*Date: 04/26/2017, v 1.3.1*
-
-[kismatic](https://github.com/apprenda/kismatic) is a set of production-ready defaults and best
-practice tools for creating enterprise-tuned Kubernetes clusters. It is based on golang and ansible,
-where ansible playbook is launched via golang (os.exec). kismatic installation flow:
-
-```
-$ kismatic install plan
-$ kismatic install validate
-$ kismatic install apply
-```
-
-- `plan`: kismatic creates a config yaml file
-- `validate`: check hosts requirements
-- `apply`: actually install kubernetes
-
-Between 'plan' and 'validate', admin needs to provision hosts manually. kismatic is not just about
-cluster deployment, it also does simple management, like installing kubedash, ingress. During
-installation, kismatic does hosts validation, kubernetes smoke test.
-
-*References*
-
-- https://github.com/apprenda/kismatic/blob/v1.3.1/docs/INTENT.md
-- https://github.com/apprenda/kismatic/blob/v1.3.1/docs/INSTALL.md
-- https://github.com/apprenda/kismatic/blob/v1.3.1/docs/PLAN.md
-- https://github.com/apprenda/kismatic/blob/v1.3.1/docs/PROVISION.md
-
-## kargo
-
-*Date: 04/26/2017, kargo v2.1.1*
-
-[kargo](https://github.com/kubespray/kargo-cli) is a pure ansible playbook to deploy kubernetes,
-with a lot of options. To ease deployment, kargo provides a cli tool: kargo-cli; so that user
-doesn't have to interact with ansible directly.
-
-*Update on 11/07/2018, v2.7.0*
-
-kargo is moved to Kubernetes incubator and renamed [kubespray](https://github.com/kubernetes-incubator/kubespray).
-
-*References*
-
-- https://github.com/kubernetes-incubator/kargo/blob/v2.1.1/docs/getting-started.md
-
-## kops
-
-*Date: 04/26/2017, kops v1.5.3*
-
-Kops is the `kubectl` for clusters; common commands used in kops are:
-
-```
-kops create cluster
-kops update cluster
-kops get clusters
-kops delete cluster
-```
-
-Kops is written in go; unlike other tools, it doesn't depend on other management platform like
-ansible. kops defines a specification similar to kubernetes, but the resource is NOT part of
-kubernetes. Below is a very brief workflow:
-
-- Run `kops create cluster`, a yaml file is created with keys like `apiVersion`, `kind`
-- Run `kops update cluster`, the yaml file is parsed and applied to cloud, e.g. aws, gce.
-
-*References*
-- https://github.com/kubernetes/kops/blob/1.5.3/docs/aws.md
-- https://github.com/kubernetes/kops/blob/1.5.3/docs/philosophy.md
-- https://github.com/kubernetes/kops/blob/1.5.3/docs/boot-sequence.md
-
-## kargo vs. kops
-
-- Kargo runs on bare metal and most clouds, using Ansible as its substrate for provisioning and orchestration.
-- Kops performs the provisioning and orchestration itself, and as such is less flexible in deployment platforms.
-
-For people with familiarity with Ansible, existing Ansible deployments or the desire to run a
-Kubernetes cluster across multiple platforms, Kargo is a good choice. Kops, however, is more tightly
-integrated with the unique features of the clouds it supports so it could be a better choice if you
-know that you will only be using one platform for the foreseeable future.
-
-## kaptaind
-
-*Date: 09/14/2017*
-
-[kaptaind](https://github.com/kaptaind/kaptaind) is a simple tool to backup & restore kubernetes
-cluster snapshots. A broker component is running as api server, accepting export & import (i.e.
-backup & restore) tasks. An agent is typically running in kubernetes cluster and asks for import
-task. The export & import process is copy/past yaml files.
-
-# Templating
+# Templating & Packaging
 
 ## helm
 
@@ -680,7 +869,44 @@ kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admi
 kubectl patch deploy --namespace kube-system tiller-deploy -p '{"spec":{"template":{"spec":{"serviceAccount":"tiller"}}}}'
 ```
 
-## ksonnet
+**Related Projects**
+
+- https://docs.fluxcd.io/projects/helm-operator/en/stable/
+
+## kustomize
+
+link: [kustomize](./kustomize)
+
+## kpt
+
+*Date: 04/13/2020, v0.12.0*
+
+[kpt](https://googlecontainertools.github.io/kpt/) is a tool to fetch, display, customize, update,
+validate and apply Kubernetes configurations. It is based Git & YAML, which means it works with
+existing tools, framework and platforms, namely helm, kustomize, etc.
+
+The core commands in kpt include:
+- `kpt pkg`: fetch and update configuration using Git and YAML
+- `kpt cfg`: display and modify configuration in commadn line
+- `kpt live`: next-generation of kubectl apply
+- `kpt fn`: functions to generate, transform and validate configuration
+
+Usage workflow for packaging `kpt pkg`:
+1. Fetch package: `kpt pkg get $REPO/package-examples/helloworld-set@v0.3.0 helloworld`
+1. Make local changes and commit
+1. Merge upstream changes: `kpt pkg update helloworld@v0.5.0 --strategy=resource-merge`
+1. Resolve local conflicts
+
+Usage for `kpt fun`, e.g. run a function to apply labels to all namespaces for resources under `.`:
+```
+kpt fn run --image gcr.io/kpt-functions/label-namespace . -- label_name=color label_value=orange
+```
+
+Note any solution which emits configuration can also generate kpt packages (because they are just
+configuration); therefore, kpt can be treated as a higher-level package manager on top of
+configuration management tools like helm and kustomize.
+
+## (deprecated) ksonnet
 
 *Date: 02/22/2018, v0.8.0*
 
@@ -693,50 +919,11 @@ Ksonnet has relatively good documentation, read following docs in order:
 
 - https://stackoverflow.com/questions/48867912/draft-vs-helm-vs-ksonnet-complementing-or-replacing
 
-## kustomize
-
-link: [kustomize](./kustomize)
-
-## Templates
-
-A list of template projects
+# References
 
 - https://blog.openshift.com/kubernetes-state-app-templating/
 
-# Nodeless
-
-## virtual-kubelet
-
-*Date: 10/03/2018, 0.6.0*
-
-virtual-kubelet is created from Microsoft.
-
-[virtual kubelet](https://github.com/virtual-kubelet/virtual-kubelet) registers to Kubernetes as a
-'normal' node, but backed by other services. It is a Kubelet implementation that masquerades as a
-kubelet for the purposes of connecting Kubernetes to other APIs. Despite the name `virtual-kubelet`,
-it has nothing to do with vm-based virtualization (like kubevirt, virtlet); rather, it's best seen
-as a complement to serverless system.
-
-Following is a summary of how it works:
-- virtual kubelet runs as a Pod in Kubernetes cluster. The Pod registers itself as a node, and
-  watches for Pod scheduled to it. The virtual kubelet doesn't have an IP address.
-- once a Pod is scheduled to it (using node selector from user), virtual-kubelet calls external
-  provider (e.g. azure aci, hyper, aws fargate, etc) to create real containers.
-- Pod status is updated to reflect the status from external provider.
-
-The created pod/container is running in remote cluster, managed by cloud providers. virtual kubelet
-it an API bridge between Kubernetes and cloud providers - the container for user application, once
-started, has nothing to do with virtual kubelet.
-
-It's possible to create a multiple Pods, e.g. using Deployment, and assign them to virtual kubelet.
-virtual kubelet will create equal number of containers in cloud providers.
-
-*References*
-- [how it works](https://github.com/virtual-kubelet/virtual-kubelet/tree/v0.6.2#how-it-works)
-- [azure aci provider](https://github.com/virtual-kubelet/virtual-kubelet/blob/v0.6.2/providers/azure/README.md)
-- [aws blog](https://aws.amazon.com/blogs/opensource/aws-fargate-virtual-kubelet/)
-
-# TODOs
+**TODO**
 
 - kube-lego (TODO: basic, P1)
   https://github.com/jetstack/kube-lego

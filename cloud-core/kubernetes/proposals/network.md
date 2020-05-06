@@ -3,28 +3,28 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [KEPs](#keps)
-  - [pod-ready++](#pod-ready)
-  - [topology-aware service routing](#topology-aware-service-routing)
-  - [ipvs based service](#ipvs-based-service)
-  - [node-local dns cache](#node-local-dns-cache)
-  - [endpoint slice](#endpoint-slice)
-  - [ingress graduation](#ingress-graduation)
-  - [service lb finalizer](#service-lb-finalizer)
+  - [20180101 - pod-ready++](#20180101---pod-ready)
+  - [20180101 - ipvs based service](#20180101---ipvs-based-service)
+  - [20180101 - node-local dns cache](#20180101---node-local-dns-cache)
+  - [20181024 - topology-aware service routing](#20181024---topology-aware-service-routing)
+  - [20190125 - ingress api group](#20190125---ingress-api-group)
+  - [20190423 - service lb finalizer](#20190423---service-lb-finalizer)
+  - [20190603 - endpointslice api](#20190603---endpointslice-api)
+  - [20191227 - app protocol](#20191227---app-protocol)
 - [Feature & Design](#feature--design)
-  - [networking](#networking)
-  - [command execution portforwarding](#command-execution-portforwarding)
-  - [kubernetes dns specification](#kubernetes-dns-specification)
-  - [node-local service](#node-local-service)
-  - [topology-aware service routing](#topology-aware-service-routing-1)
-  - [service external name](#service-external-name)
-  - [full service discovery](#full-service-discovery)
-  - [network policy](#network-policy)
-  - [traffic shaping with kubenet and cni](#traffic-shaping-with-kubenet-and-cni)
-  - [external source ip preservation](#external-source-ip-preservation)
-  - [configurable nodeport ip range](#configurable-nodeport-ip-range)
-  - [configurable resolv.conf](#configurable-resolvconf)
-  - [hostname alias](#hostname-alias)
-- [Workflow](#workflow)
+  - [(large) networking](#large-networking)
+  - [(large) kubernetes dns specification](#large-kubernetes-dns-specification)
+  - [(large) network policy](#large-network-policy)
+  - [(medium) command execution portforwarding](#medium-command-execution-portforwarding)
+  - [(medium) external source ip preservation](#medium-external-source-ip-preservation)
+  - [(small) service external name](#small-service-external-name)
+  - [(small) traffic shaping with kubenet and cni](#small-traffic-shaping-with-kubenet-and-cni)
+  - [(small) configurable nodeport ip range](#small-configurable-nodeport-ip-range)
+  - [(small) configurable resolv.conf](#small-configurable-resolvconf)
+  - [(small) hostname alias](#small-hostname-alias)
+  - [(deprecated) node-local service](#deprecated-node-local-service)
+  - [(deprecated) full service discovery](#deprecated-full-service-discovery)
+- [Implementation](#implementation)
   - [how ip-per-pod works](#how-ip-per-pod-works)
   - [how service with udp proxy works](#how-service-with-udp-proxy-works)
   - [how dns works v1](#how-dns-works-v1)
@@ -45,7 +45,7 @@
 
 # KEPs
 
-## pod-ready++
+## 20180101 - pod-ready++
 
 - *Date: 09/07/2018, v1.11*
 - *Date: 06/16/2019, v1.14, stable*
@@ -87,63 +87,17 @@ status:
 …
 ```
 
-*References*
+**Alternatives**
 
-- [pod ready KEP link](https://github.com/kubernetes/community/blob/a5515a371e380886a56aaa5843df27f21d9e892e/keps/sig-network/0007-pod-ready%2B%2B.md)
-
-## topology-aware service routing
-
-- *Date: 06/23/2019, v1.15, design*
-
-Topology-aware service routing allows routing of service endpoints based on user specified topology,
-instead of randomly choosing service endpoints. The KEP proposes two API changes:
-- Add `topologyKeys:string` field to Service Spec.
-- Add a new API object `PodLocator` (not finalized yet in v1.15).
-
-And three component changes:
-- Add `PodLocator Controller`: populate PodLocator object.
-- Kube-proxy change: understand topology and program iptables/ipvs rules accordingly.
-- DNS change: understand topology and write headless A record accordingly.
-
-For example, the following API defines a service where local endpoints are preferred; if not found,
-then use endpoints in the same zone (with the client). If still not found, then it will fail the
-request.
-
-```yaml
-kind: Service
-metadata:
-  name: service-local
-spec:
-  topologyKeys: ["kubernetes.io/hostname", "topology.kubernetes.io/zone"]
-```
-
-The `PodLocator` is a new API to locate Pod: each Pod will have a corresponding `PodLocator`. The
-primary reason for having the API is to make pod/node topology information more discoverable. Any
-component interested in Pod topology just need to watch `PodLocator` and act accordingly, instead
-of watching all Pods and Nodes. A PodLocator Controller will be added to keep `PodLocator` updated.
-
-```go
-// PodLocator represents information about where a pod exists in arbitrary space.  This is useful for things like
-// being able to reverse-map pod IPs to topology labels, without needing to watch all Pods or all Nodes.
-type PodLocator struct {
-    metav1.TypeMeta
-    // +optional
-    metav1.ObjectMeta
-
-    // NOTE: Fields in this resource must be relatively small and relatively low-churn.
-
-    IPs []PodIPInfo // being added for dual-stack support
-    NodeName string
-    NodeLabels map[string]string
-}
-```
+- Fix the workloads: there are a lot of workloads and many 3rd party workloads as well, which
+  do not care about resources other than Pods, etc.
+- Extend container readiness: container readiness is tied to low level constructs such as runtime
 
 *References*
 
-- [topology-aware service routing KEP link](https://github.com/kubernetes/enhancements/blob/6861b7279948db44b58b8056450bc45102ea60bb/keps/sig-network/0033-service-topology.md)
-- https://github.com/kubernetes/enhancements/issues/536
+- [pod ready KEP link](https://github.com/kubernetes/enhancements/blob/1bad2ecb356323429a6ac050f106af4e1e803297/keps/sig-network/0007-pod-ready%2B%2B.md)
 
-## ipvs based service
+## 20180101 - ipvs based service
 
 - *Date: 05/18/2017*
 - *Date: 06/08/2017, v1.6, design*
@@ -165,9 +119,10 @@ Notes on ipvs implementation:
 - https://github.com/kubernetes/community/pull/692
 - https://kubernetes.io/blog/2018/07/09/ipvs-based-in-cluster-load-balancing-deep-dive/
 
-## node-local dns cache
+## 20180101 - node-local dns cache
 
 - *Date: 09/15/2019, v1.15, alpha*
+- *Date: 03/31/2020, v1.18, stable*
 
 This KEP aims to improve DNS performance by running a dns caching agent on all cluster nodes as a
 Daemonset. After running the Daemonset, Pod will talk to local dns instead of kube-dns server for
@@ -337,13 +292,151 @@ There is a few caveats:
 - https://strongarm.io/blog/linux-stateless-firewall/
 - https://distracted-it.blogspot.com/2015/05/iptables-firewall-rules-for-busy.html
 
-## endpoint slice
+## 20181024 - topology-aware service routing
+
+- *Date: 06/23/2019, v1.15, design*
+- *Date: 06/23/2019, v1.17, alpha*
+
+Topology-aware service routing allows routing of service endpoints based on user specified topology,
+instead of randomly choosing service endpoints. The KEP proposes two API changes:
+- Add `topologyKeys:string` field to Service Spec.
+- Add a new API object `PodLocator` (not finalized yet in v1.15).
+
+And three component changes:
+- Add `PodLocator Controller`: populate PodLocator object.
+- Kube-proxy change: understand topology and program iptables/ipvs rules accordingly.
+- DNS change: understand topology and write headless A record accordingly.
+
+For example, the following API defines a service where local endpoints are preferred; if not found,
+then use endpoints in the same zone (with the client). If still not found, then it will fail the
+request.
+
+```yaml
+kind: Service
+metadata:
+  name: service-local
+spec:
+  topologyKeys: ["kubernetes.io/hostname", "topology.kubernetes.io/zone"]
+```
+
+The `PodLocator` is a new API to locate Pod: each Pod will have a corresponding `PodLocator`. The
+primary reason for having the API is to make pod/node topology information more discoverable. Any
+component interested in Pod topology just need to watch `PodLocator` and act accordingly, instead
+of watching all Pods and Nodes. A PodLocator Controller will be added to keep `PodLocator` updated.
+
+```go
+// PodLocator represents information about where a pod exists in arbitrary space.  This is useful for things like
+// being able to reverse-map pod IPs to topology labels, without needing to watch all Pods or all Nodes.
+type PodLocator struct {
+    metav1.TypeMeta
+    // +optional
+    metav1.ObjectMeta
+
+    // NOTE: Fields in this resource must be relatively small and relatively low-churn.
+
+    IPs []PodIPInfo // being added for dual-stack support
+    NodeName string
+    NodeLabels map[string]string
+}
+```
+
+*Original design on 03/03/2018, v1.9*
+
+The proposal aims to solve a couple of issues, including the above node-local service design, by
+providing a new `ServicePolicy` API. Users can specify routing policy, for example, when a pod
+accssing the service, only route traffic to the node, or rack, or zone, where the pod is running.
+The policy generalizes node local to any user defined topology. The feature is in design phase.
+For example, the following example creates a service policy which restrict all traffic to service
+with label `app:bar` will be routed only to backends that satisfy both same region and same switch
+as kube-proxy:
+
+```yaml
+kind: ServicePolicy
+metadata:
+  name: service-policy-example-1
+  namespace: foo
+spec:
+  serviceSelector:
+    matchLabels:
+      app: bar
+  topology:
+    key: kubernetes.io/region
+    mode: required
+---
+kind: ServicePolicy
+metadata:
+  name: service-policy-example-2
+  namespace: foo
+spec:
+  serviceSelector:
+    matchLabels:
+      app: bar
+  topology:
+    key: kubernetes.io/switch
+    mode: required
+```
+
+The proposal is moved to KEP, and `ServicePolicy` is removed due to its complexity.
+
+*References*
+
+- [topology-aware service routing KEP link](https://github.com/kubernetes/enhancements/blob/6861b7279948db44b58b8056450bc45102ea60bb/keps/sig-network/0033-service-topology.md)
+- https://github.com/kubernetes/enhancements/issues/536
+- https://github.com/kubernetes/community/pull/1551
+
+## 20190125 - ingress api group
+
+- *Date: 12/09/2019, v1.17, beta*
+
+Ingress has been in beta status for many years, and is the last API that's not migrated from
+extension API group to its own API group. The General goal of the KEP is to:
+- move ingress from extension API group to networking API group
+- graduate the Ingress API with bug fixes to GA
+
+For the purpose, the KEP includes a bunch of changes:
+- Add path as a prefix and make regex support optional, i.e. `ingress.spec.rules.http.paths.pathType`
+  with values set to one of `ImplementationSpecific`, `Exact` and `Prefix`.
+- Fix API field naming: `spec.backend` should be called `spec.defaultBackend`.
+- Hostname wildcard matching, i.e. `spec.rules.host` supports wildcard matching.
+- Formalize the Ingress class annotation into a field and an associated `IngressClass` resource.
+- Add support for non-Service Backend types, i.e. `ingress.spec.backend.resource`.
+
+*References*
+
+- [ingress API group KEP link](https://github.com/kubernetes/enhancements/blob/c71c21d2f0f4875ce8f84663190c61bd2beb64e2/keps/sig-network/20190125-ingress-api-group.md)
+- https://github.com/kubernetes/enhancements/issues/758
+
+## 20190423 - service lb finalizer
+
+- *Date: 11/03/2019, v1.16, beta*
+- *Date: 12/09/2019, v1.17, stable*
+
+The KEP is simple: a finalizer is added to service with `type=LoadBalaner`, to ensure cloud resources
+are deleted before Service object is removed from Kubernetes. The finalizer logic is implemented in
+service controller.
+
+It's important to note that the finalizer takes place not just when Service is being deleted, it also
+takes effect when updating Service from `type=LoadBalancer` to other types.
+
+Upgrade is easy: upon starting new service-controller, it will add the finalizer to all existing
+Services with `type=LoadBalancer`. For downgrade, there is compatibility issue between different
+versions of Kubernetes. If a cluster is downgraded from a newer Kubernetes, and there are Services
+with the finalizer, then such Services can never be deleted since there's no service lb finalizer in
+previous Kubernetes. The KEP includes a "removal logic" that can remove service finalizer, but if
+it's a n+2 upgrade, then users have to remove the finalizer themselves.
+
+*References*
+
+- [service lb finalizer KEP link](https://github.com/kubernetes/enhancements/blob/c71c21d2f0f4875ce8f84663190c61bd2beb64e2/keps/sig-network/20190423-service-lb-finalizer.md)
+
+## 20190603 - endpointslice api
 
 - *Date: 09/22/2019, v1.16, alpha*
+- *Date: 03/30/2020, v1.18, beta*
 
 In current endpoint API, one `Endpoint` object contains all individual endpoints of a `Service`.
 
-```
+```go
 // Endpoints is a collection of endpoints that implement the actual service.  Example:
 //   Name: "mysvc",
 //   Subsets: [
@@ -433,46 +526,72 @@ which wil co-exist with endpoint-controller for multiple releases.
 
 - [endpointslice API KEP link](https://github.com/kubernetes/enhancements/blob/26dc9a946876b32f3f2b41a58edf4e35a2751f9f/keps/sig-network/20190603-EndpointSlice-API.md)
 
-## ingress graduation
+## 20191227 - app protocol
 
-*Date: 11/03/2019, v1.16*
+- *Date: 03/31/2020, v1.18, stable*
 
-The KEP proposes to
-- move ingress from extension API group to networking API group
-- fix various bugs and improve API in ingress
+This is a small KEP to add AppProtocol to Kubernetes Service and Endpoint API Object, thus each
+individual service and endpoint port can be associated with an application protocol, which is less
+confusing to users.
 
-*References*
+AppProtocol is already part of the EndpointSlice API, thus adding the field in Service and Endpoint
+only occur minimal changes.
 
-- [ingress API group KEP link](https://github.com/kubernetes/enhancements/blob/c71c21d2f0f4875ce8f84663190c61bd2beb64e2/keps/sig-network/20190125-ingress-api-group.md)
-- https://github.com/kubernetes/enhancements/issues/758
+```go
+// ServicePort represents the port on which the service is exposed
+type ServicePort struct {
+    ...
+    // The application protocol for this port.
+    // This field follows standard Kubernetes label syntax.
+    // Un-prefixed names are reserved for IANA standard service names (as per
+    // RFC-6335 and http://www.iana.org/assignments/service-names).
+    // Non-standard protocols should use prefixed names such as
+    // mycompany.com/my-custom-protocol.
+    // +optional
+    AppProtocol *string
+}
 
-## service lb finalizer
+// EndpointPort is a tuple that describes a single port.
+type EndpointPort struct {
+    ...
+    // The application protocol for this port.
+    // This field follows standard Kubernetes label syntax.
+    // Un-prefixed names are reserved for IANA standard service names (as per
+    // RFC-6335 and http://www.iana.org/assignments/service-names).
+    // Non-standard protocols should use prefixed names such as
+    // mycompany.com/my-custom-protocol.
+    // +optional
+    AppProtocol *string
+}
+```
 
-*Date: 11/03/2019, v1.16*
+For example:
 
-The KEP is simple: a finalizer is added to service with `type=LoadBalaner`, to ensure cloud resources
-are deleted before Service object is removed from Kubernetes. The finalizer logic is implemented in
-service controller.
+```yaml
+apiVersion: v1
+kind: Service
+...
+spec:
+  ports:
+    - name: ssh
+      port: 22
+      protocol: tcp
+      appProtocol: tcp
+    - name: http
+      port: 80
+      appProtocol: http
+    - name: https
+      port: 443
+      appProtocol: http
+```
 
-It's important to note that the finalizer takes place not just when Service is being deleted, it also
-takes effect when updating Service from `type=LoadBalancer` to other types.
-
-Upgrade is easy: upon starting new service-controller, it will add the finalizer to all existing
-Services with `type=LoadBalancer`. For downgrade, there is compatibility issue between different
-versions of Kubernetes. If a cluster is downgraded from a newer Kubernetes, and there are Services
-with the finalizer, then such Services can never be deleted since there's no service lb finalizer in
-previous Kubernetes. The KEP includes a "removal logic" that can remove service finalizer, but if
-it's a n+2 upgrade, then users have to remove the finalizer themselves.
-
-*References*
-
-- [service lb finalizer KEP link](https://github.com/kubernetes/enhancements/blob/c71c21d2f0f4875ce8f84663190c61bd2beb64e2/keps/sig-network/20190423-service-lb-finalizer.md)
+- [app protocol KEP link](https://github.com/kubernetes/enhancements/blob/000b16193b2e9833cd21884e58aaa05a03f11ef6/keps/sig-network/20191227-app-protocol.md)
 
 # Feature & Design
 
-## networking
+## (large) networking
 
-*Date: 09/23/2018, v1.11*
+- *Date: 09/23/2018, v1.11*
 
 The proposal provides design space for four fundamental networking model in Kubernetes, i.e.
 - Container-to-Container communications
@@ -484,34 +603,9 @@ The proposal provides design space for four fundamental networking model in Kube
 
 - [networking design doc](https://github.com/kubernetes/community/blob/8080061fb6377a20e44d6890352f6ea27796cf10/contributors/design-proposals/network/networking.md)
 
-## command execution portforwarding
+## (large) kubernetes dns specification
 
-*Date: 09/23/2018, v1.11*
-
-The proposal aims to provide ssh-like experience in Kubernetes, i.e. execute command in container,
-port forward from remote pod into local environment.
-
-The proposal excludes the option to use SSH, because:
-- there is no real user when using namespace/pod/container to identify a container
-- there is length limit for user name
-
-Therefore, Kubernetes uses streaming protocol to provide ssh-like experience; tools that expect to
-use SSH won't work, but the protocol should suffice for most workload.
-
-Kubelet uses `nsenter` to execute command in container, instead of using docker.
-
-Requests go through client -> master -> kubelet -> container, there are room for imporvements:
-- now with cri, kubelet is no longer a bottleneck: master can talk to container runtime directly
-- master is still a bottleneck; we can solve the problem by providing a proxy which retrieves an
-  authorization token from the master
-
-*References*
-
-- [command execution port forwarding design doc](https://github.com/kubernetes/community/blob/8080061fb6377a20e44d6890352f6ea27796cf10/contributors/design-proposals/network/command_execution_port_forwarding.md)
-
-## kubernetes dns specification
-
-*Date: 11/26/2017, v1.8*
+- *Date: 11/26/2017, v1.8*
 
 The proposal defines how kuberntes DNS should work. Implementations other than kube-dns can
 implement the specification. For example, the specification defines what answer must be returned
@@ -580,125 +674,9 @@ in terms of headless service. Below is a brief summary:
 
 - [specification as of kubernetes v1.8](https://github.com/kubernetes/dns/blob/7d0bfdc04b9a1f659becb7b184f53b1df7c996de/docs/specification.md)
 
-## node-local service
+## (large) network policy
 
-- *Date: 05/21/2017, v1.6, design*
-- *Date: 03/03/2018, v1.9, closed*
-
-The goal is to provide a new service type which when requested, only send traffic to local service
-endpoint. This works best for daemonset. [Here](https://groups.google.com/d/msg/kubernetes-dev/cK0djP-0ajY/HGeQ_oz0BAAJ)
-is a typical use case.
-
-The feature is generalized to the following feature: topology aware services routing.
-
-*References*
-
-- [proposal from author's branch](https://github.com/Clarifai/kubernetes/blob/dfb222f29a0c2365c92d73367cee5cbd9272b8e0/docs/proposals/node-local-services.md)
-- https://github.com/kubernetes/kubernetes/issues/28610
-
-## topology-aware service routing
-
-- *Date: 03/03/2018, v1.9, design*
-- *Date: 06/23/2019, v1.15, closed and moved to KEP*
-
-The proposal aims to solve a couple of issues, including the above node-local service design, by
-providing a new `ServicePolicy` API. Users can specify routing policy, for example, when a pod
-accssing the service, only route traffic to the node, or rack, or zone, where the pod is running.
-The policy generalizes node local to any user defined topology. The feature is in design phase.
-For example, the following example creates a service policy which restrict all traffic to service
-with label `app:bar` will be routed only to backends that satisfy both same region and same switch
-as kube-proxy:
-
-```yaml
-kind: ServicePolicy
-metadata:
-  name: service-policy-example-1
-  namespace: foo
-spec:
-  serviceSelector:
-    matchLabels:
-      app: bar
-  topology:
-    key: kubernetes.io/region
-    mode: required
----
-kind: ServicePolicy
-metadata:
-  name: service-policy-example-2
-  namespace: foo
-spec:
-  serviceSelector:
-    matchLabels:
-      app: bar
-  topology:
-    key: kubernetes.io/switch
-    mode: required
-```
-
-The proposal is moved to KEP, and `ServicePolicy` is removed due to its complexity.
-
-*References*
-
-- https://github.com/kubernetes/community/pull/1551
-
-## service external name
-
-*Date: 10/12/2016, v1.4*
-
-The feature supports referencing external services using CNAME, e.g. we can create a service named
-`oracle` and with field `service.spec.externalName` set to `oracle-1.testdev.mycompany.com`; then
-when pods access service `oracle` inside kubernetes, a CNAME `oracle-1.testdev.mycompany.com` will
-be returned. It is admin's responsibility to make sure pod can resolve the CNAME. Typically, pods
-are able to resolve such CNAME as it will use hosts' resolve.conf.
-
-In kubernetes, when a service with `type == ExternalName` is created, dns pod will receive the
-information and update its backend with a CNAME entry. In this setup, no virtual IP or proxying
-is involved - only a CNAME is created in dns.
-
-*References*
-
-- [service external name design doc](https://github.com/kubernetes/kubernetes/blob/v1.4.0/docs/proposals/service-external-name.md)
-- https://github.com/kubernetes/features/issues/33
-
-## full service discovery
-
-*Date: 09/23/2018, v1.11, design*
-
-Problem statement from proposal:
-
-> To consume a service, a developer needs to know the full URL and a description of the API.
-> Kubernetes contains the host and port information of a service, but it lacks the scheme and the
-> path information needed if the service is not bound at the root. In this document we propose some
-> standard kubernetes service annotations to fix these gaps. It is important that these annotations
-> are a standard to allow for standard service discovery across Kubernetes implementations.
-
-The proposal includes some standard annotations:
-
-```yaml
-...
-"objects" : [ {
-  "apiVersion" : "v1",
-  "kind" : "Service",
-  "metadata" : {
-    "annotations" : {
-      "api.service.kubernetes.io/protocol" : "REST",
-      "api.service.kubernetes.io/scheme" "http",
-      "api.service.kubernetes.io/path" : "cxfcdi",
-      "api.service.kubernetes.io/description-path" : "cxfcdi/swagger.json",
-      "api.service.kubernetes.io/description-language" : "SwaggerJSON"
-    },
-...
-```
-
-Note that the proposal is merged but not implemented (not sure about the status).
-
-*References*
-
-- [full service discovery design doc](https://github.com/kubernetes/community/blob/8080061fb6377a20e44d6890352f6ea27796cf10/contributors/design-proposals/network/service-discovery.md)
-
-## network policy
-
-*Date: 09/23/2018, v1.11, stable*
+- *Date: 09/23/2018, v1.11, stable*
 
 The proposal introduces a `NetworkPolicy` objects, which select groups of pods and define how those
 pods should be allowed to communicate with each other (both ingress and egress). For example:
@@ -795,40 +773,34 @@ spec:
 - https://kubernetes.io/docs/tasks/administer-cluster/declare-network-policy/
 - https://github.com/kubernetes/kubernetes/issues/49978
 
-## traffic shaping with kubenet and cni
+## (medium) command execution portforwarding
 
-*Date: 09/23/2018, v1.11, alpha*
+- *Date: 09/23/2018, v1.11*
 
-kubenet (superceded by cni) support traffic shaping using linux `tc`. To use traffic shaping, make
-sure Kubernetes is started with kubenet network plugin, i.e. `--network-plugin="kubenet"`, then add
-annotation to pod object, e.g.
+The proposal aims to provide ssh-like experience in Kubernetes, i.e. execute command in container,
+port forward from remote pod into local environment.
 
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: pod-for-shaping
-  annotations:
-    kubernetes.io/ingress-bandwidth: 1M
-    kubernetes.io/egress-bandwidth: 1M
-spec:
-  containers:
-    - name: container
-      image: ddysher/nginx:1.13-net
-      ports:
-        - containerPort: 80
-```
+The proposal excludes the option to use SSH, because:
+- there is no real user when using namespace/pod/container to identify a container
+- there is length limit for user name
 
-In v1.12, Kubernetes added support for traffic shaping with cni.
+Therefore, Kubernetes uses streaming protocol to provide ssh-like experience; tools that expect to
+use SSH won't work, but the protocol should suffice for most workload.
 
-- [support traffic shaping for kubelet cni doc](https://github.com/kubernetes/community/blob/8080061fb6377a20e44d6890352f6ea27796cf10/contributors/design-proposals/network/support_traffic_shaping_for_kubelet_cni.md)
-- [cni bandwidth plugin](https://github.com/containernetworking/plugins/tree/a8ad12dd7a3f4f913cd2fe0f33b61205e4875681/plugins/meta/bandwidth)
-- https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
-- https://github.com/kubernetes/kubernetes/pull/63194
+Kubelet uses `nsenter` to execute command in container, instead of using docker.
 
-## external source ip preservation
+Requests go through client -> master -> kubelet -> container, there are room for imporvements:
+- now with cri, kubelet is no longer a bottleneck: master can talk to container runtime directly
+- master is still a bottleneck; we can solve the problem by providing a proxy which retrieves an
+  authorization token from the master
 
-*Date: 03/03/2018, v1.9*
+*References*
+
+- [command execution port forwarding design doc](https://github.com/kubernetes/community/blob/8080061fb6377a20e44d6890352f6ea27796cf10/contributors/design-proposals/network/command_execution_port_forwarding.md)
+
+## (medium) external source ip preservation
+
+- *Date: 03/03/2018, v1.9*
 
 Problem statement from proposal:
 
@@ -890,9 +862,59 @@ packet will be dropped.
 - [loadbalancer source ip preservation](https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip)
 - [understand source ip in Kubernetes](https://kubernetes.io/docs/tutorials/services/source-ip/)
 
-## configurable nodeport ip range
+## (small) service external name
 
-*Date: 03/04/2018, v1.10*
+- *Date: 10/12/2016, v1.4*
+
+The feature supports referencing external services using CNAME, e.g. we can create a service named
+`oracle` and with field `service.spec.externalName` set to `oracle-1.testdev.mycompany.com`; then
+when pods access service `oracle` inside kubernetes, a CNAME `oracle-1.testdev.mycompany.com` will
+be returned. It is admin's responsibility to make sure pod can resolve the CNAME. Typically, pods
+are able to resolve such CNAME as it will use hosts' resolve.conf.
+
+In kubernetes, when a service with `type == ExternalName` is created, dns pod will receive the
+information and update its backend with a CNAME entry. In this setup, no virtual IP or proxying
+is involved - only a CNAME is created in dns.
+
+*References*
+
+- [service external name design doc](https://github.com/kubernetes/kubernetes/blob/v1.4.0/docs/proposals/service-external-name.md)
+- https://github.com/kubernetes/features/issues/33
+
+## (small) traffic shaping with kubenet and cni
+
+- *Date: 09/23/2018, v1.11, alpha*
+
+kubenet (superceded by cni) support traffic shaping using linux `tc`. To use traffic shaping, make
+sure Kubernetes is started with kubenet network plugin, i.e. `--network-plugin="kubenet"`, then add
+annotation to pod object, e.g.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-for-shaping
+  annotations:
+    kubernetes.io/ingress-bandwidth: 1M
+    kubernetes.io/egress-bandwidth: 1M
+spec:
+  containers:
+    - name: container
+      image: ddysher/nginx:1.13-net
+      ports:
+        - containerPort: 80
+```
+
+In v1.12, Kubernetes added support for traffic shaping with cni.
+
+- [support traffic shaping for kubelet cni doc](https://github.com/kubernetes/community/blob/8080061fb6377a20e44d6890352f6ea27796cf10/contributors/design-proposals/network/support_traffic_shaping_for_kubelet_cni.md)
+- [cni bandwidth plugin](https://github.com/containernetworking/plugins/tree/a8ad12dd7a3f4f913cd2fe0f33b61205e4875681/plugins/meta/bandwidth)
+- https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
+- https://github.com/kubernetes/kubernetes/pull/63194
+
+## (small) configurable nodeport ip range
+
+- *Date: 03/04/2018, v1.10*
 
 By default, kube-proxy accepts everything from NodePort without any filter. It can be a problem for
 nodes which have both public and private NICs, and people only want to provide a service in private
@@ -914,7 +936,7 @@ is the one we want to accept traffic.
 
 - [nodeport ip range design doc](https://github.com/kubernetes/community/blob/bc455cc55778bf16252a050d9b8013897afd9748/contributors/design-proposals/network/nodeport-ip-range.md)
 
-## configurable resolv.conf
+## (small) configurable resolv.conf
 
 - *Date: 03/04/2018, v1.10, beta*
 - *Date: 06/16/2019, v1.14, stable*
@@ -949,9 +971,9 @@ The above API has changed a little bit in stable API:
 
 - [pod resolve conf design doc](  https://github.com/kubernetes/community/blob/bad95e7723049158128c96620993de83cab42321/contributors/design-proposals/network/pod-resolv-conf.md)
 
-## hostname alias
+## (small) hostname alias
 
-*Date: 08/07/2018, v1.11, stable*
+- *Date: 08/07/2018, v1.11, stable*
 
 In 1.7, users can add these custom entries with the `HostAliases` field in PodSpec. Modification not
 using `HostAliases` is not suggested because the file is managed by Kubelet and can be overwritten
@@ -1002,7 +1024,59 @@ fe00::2 ip6-allrouters
 10.1.2.3  bar.remote
 ```
 
-# Workflow
+## (deprecated) node-local service
+
+- *Date: 05/21/2017, v1.6, design*
+- *Date: 03/03/2018, v1.9, closed*
+
+The goal is to provide a new service type which when requested, only send traffic to local service
+endpoint. This works best for daemonset. [Here](https://groups.google.com/d/msg/kubernetes-dev/cK0djP-0ajY/HGeQ_oz0BAAJ)
+is a typical use case.
+
+The feature is generalized to the following feature: topology aware services routing.
+
+*References*
+
+- [proposal from author's branch](https://github.com/Clarifai/kubernetes/blob/dfb222f29a0c2365c92d73367cee5cbd9272b8e0/docs/proposals/node-local-services.md)
+- https://github.com/kubernetes/kubernetes/issues/28610
+
+## (deprecated) full service discovery
+
+- *Date: 09/23/2018, v1.11, design*
+
+Problem statement from proposal:
+
+> To consume a service, a developer needs to know the full URL and a description of the API.
+> Kubernetes contains the host and port information of a service, but it lacks the scheme and the
+> path information needed if the service is not bound at the root. In this document we propose some
+> standard kubernetes service annotations to fix these gaps. It is important that these annotations
+> are a standard to allow for standard service discovery across Kubernetes implementations.
+
+The proposal includes some standard annotations:
+
+```yaml
+...
+"objects" : [ {
+  "apiVersion" : "v1",
+  "kind" : "Service",
+  "metadata" : {
+    "annotations" : {
+      "api.service.kubernetes.io/protocol" : "REST",
+      "api.service.kubernetes.io/scheme" "http",
+      "api.service.kubernetes.io/path" : "cxfcdi",
+      "api.service.kubernetes.io/description-path" : "cxfcdi/swagger.json",
+      "api.service.kubernetes.io/description-language" : "SwaggerJSON"
+    },
+...
+```
+
+Note that the proposal is merged but not implemented (not sure about the status).
+
+*References*
+
+- [full service discovery design doc](https://github.com/kubernetes/community/blob/8080061fb6377a20e44d6890352f6ea27796cf10/contributors/design-proposals/network/service-discovery.md)
+
+# Implementation
 
 ## how ip-per-pod works
 
