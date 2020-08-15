@@ -3,62 +3,442 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Overview](#overview)
-  - [Traffic management](#traffic-management)
+- [Concepts](#concepts)
+  - [Traffic Management](#traffic-management)
   - [Observability](#observability)
-  - [Policy enforcement](#policy-enforcement)
-  - [Platform Support](#platform-support)
+  - [Security](#security)
+  - [Extensibility](#extensibility)
 - [Architecture](#architecture)
-  - [Overview](#overview-1)
   - [Envoy](#envoy)
-  - [Mixer](#mixer)
-  - [Pilot](#pilot)
-  - [Citadel](#citadel)
-  - [Galley](#galley)
-  - [Features](#features)
-- [Experiments](#experiments)
-  - [istio v0.1.6](#istio-v016)
-  - [istio v0.2.2](#istio-v022)
+  - [Istiod](#istiod)
+  - [Mixer (deprecated)](#mixer-deprecated)
+  - [Pilot (deprecated)](#pilot-deprecated)
+  - [Citadel (deprecated)](#citadel-deprecated)
+  - [Galley (deprecated)](#galley-deprecated)
+- [Experiment (v0.1.6)](#experiment-v016)
+  - [Installation](#installation)
+  - [Components](#components)
+  - [Tasks](#tasks)
+- [Experiment (v0.2.2)](#experiment-v022)
+  - [Installation](#installation-1)
+  - [Components](#components-1)
+  - [Tasks](#tasks-1)
+- [Experiment (v1.6.5)](#experiment-v165)
+  - [Installation](#installation-2)
+  - [Debugging](#debugging)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Overview
 
-[Istio](https://istio.io/docs/concepts/what-is-istio/overview.html) is an open platform to connect,
-manage, and secure microservices. Below is a summary of its feature sets.
+[Istio](https://istio.io) is an open platform to connect, manage, and secure microservices.
 
-## Traffic management
+An istio service mesh is logically split into a data plane and a control plane.
+- The data plane is composed of a set of intelligent proxies (Envoy) deployed as sidecars that mediate and control all network communication between microservices.
+- The control plane is responsible for managing and configuring proxies to route traffic, as well as enforcing policies at runtime.
+
+Following is a list of key features from istio:
+
+- Dynamic Routing
+- Load balancing
+- Failure recovery
+- Rich metrics and monitoring
+- A/B testing
+- Canary releases
+- Rate limiting
+- Access control
+- Circuit breaker
+- End-to-end authentication
+- TLS termination
+- HTTP/2 & gRPC proxying
+- Health checks
+- Fault injection
+- Upgrade unencrypted traffic
+- Gradual rollout
+- Retries
+
+# Concepts
+
+## [Traffic Management](https://istio.io/latest/docs/concepts/traffic-management/)
 
 Istio forms a service mesh where each application running in the mesh has an associated sidecar proxy
 running. Apart from sidecar proxy, ingress/egress traffic in the cluster is also handled in istio.
 This architecture allows istio to see all traffic in the mesh, thus istio can provide full-fleged
-traffic management. To be specific, istio can control service routing (content based, e.g. header),
-canary release, spltting traffic load, timeout, retries, circuit breaker, etc. Pilot is the core for
-managing global service information, each sidecar envoy will also maintain load balancing information
-based on the information it gets from pilot and periodic health-checks of other instances.
+traffic management.
 
-To simply put, pilot is responsible for high level rules, while envoy enforces the rules: routing,
+To be specific, istio can control service routing (content based, e.g. header), canary release,
+spltting traffic load, timeout, retries, circuit breaker, etc. Pilot is the core for managing global
+service information, each sidecar envoy will also maintain load balancing information based on the
+information from pilot and periodic health-checks of other instances.
+
+Simply put, pilot is responsible for high level rules, while envoy enforces the rules: routing,
 active health check, passive health check (circuit breaker), loadbalance, etc; all of these are
 handled in envoy. Envoy uses the sds, rds, cds API to retrieve configurations from pilot.
 
-- https://istio.io/docs/concepts/traffic-management/overview.html
-- https://istio.io/docs/concepts/traffic-management/rules-configuration.html
+Note as of istio v1.5, all control plane components are merged into a single binary: istiod.
 
-## Observability
+The core concepts in traffic management are list below; they are represented as CRDs in Kubernetes:
+- VirtualService
+- DestinationRule
+- Gateway
+- ServiceEntry
+- WorkloadEntry
+- Sidecar
 
-Istio has robust tracing, monnitoring and logging, as well as custom dashboard which provides visibility
-into application performance. All these features let you more effectively set, monitor, and enforce
-SLOs on services. Also, as mentiond above, istio has all the data from mesh, thus allowing it to show
-every piece of traffic in the mesh, e.g. traffic flow.
+**VirtualService (CRD)**
 
-## Policy enforcement
+Virtual service defines a conceptual, virtual service, meaning it does not map to any particular
+running instances, but instead, a set of instances that collectively make up a service. Virtual
+service consumers only connect to virtual service, without knowing any instance details. In
+addition, virtual service can be used to configure istio gateway, similar to virtual service
+applied to the mesh; the main difference is that virtual service on istio gateway will only
+propagate rules to edge envoy proxies.
 
-Istio can enforce organization policies, as well as service level policies like rate limiting. Policy
-can change without changing or even restarting applications.
+Example use cases of virtual service include:
+- Different versions of an application, e.g. in Kubernetes, a virtual service spans across multiple
+  deployment (thus services), each contains a different version;
+- Monolithic application to microservice migration, i.e. a virtual service exposes a single endpoint
+  but under the hood, forward traffic to multiple different endpoints;
+- Policy enforcement: virtual service has rich set of features that can be enforced via services.
+
+Implementation-wise, the rules in virtual service are propagated from istiod to every envoy proxies.
+Conceptually, the rules will apply to out-bound traffic of the consumers. For example, if we create
+a virtual service for a service called `rating` with 2s delay, then it effectively says: for any
+consumer that calls `rating` (including `rating` itself), add 2s delay to the request. The delay is
+implemented in evey envoy proxy at the sending-side of the mesh.
+
+E.g. send traffic to different versions based on user:
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: reviews
+spec:
+  hosts:
+  - reviews
+  http:
+  - match:
+    - headers:
+        end-user:
+          exact: jason
+    route:
+    - destination:
+        host: reviews
+        subset: v2
+  - route:
+    - destination:
+        host: reviews
+        subset: v3
+```
+
+**DestinationRule (CRD)**
+
+Destinatinon rule is another critical part of istio's routing functionality. It is used to configure
+the receiving-side of the mesh, e.g. circuit breaker, loadbalancing (within subsets), etc.
+
+> You can think of virtual services as how you route your traffic to a given destination, and then
+> you use destination rules to configure what happens to traffic for that destination. Destination
+> rules are applied after virtual service routing rules are evaluated, so they apply to the traffic's
+> "real" destination.
+>
+> In particular, you use destination rules to specify named service subsets, such as grouping all a
+> given service's instances by version. You can then use these service subsets in the routing rules
+> of virtual services to control the traffic to different instances of your services.
+
+Implementation-wise, the rules in destination rules are propagated from istiod to every envoy proxies.
+For example, in circuit breaker, all the instances that forms a cluster will share the budget.
+
+E.g. three different subsets for the `my-svc` destination service, with different load balancing policie:
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: my-destination-rule
+spec:
+  host: my-svc
+  trafficPolicy:
+    loadBalancer:
+      simple: RANDOM
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
+    trafficPolicy:
+      loadBalancer:
+        simple: ROUND_ROBIN
+  - name: v3
+    labels:
+      version: v3
+```
+
+**Gateway (CRD)**
+
+Gateway manages inbound (ingress gateway) and outbout (egress gateway) traffic of the mesh. Gateway
+is similar to Kubernetes ingress, but is much more feature-rich. The default gateway proxy from
+istio support both kubernetes ingress/egress and istio gateway; however, the recommended approach is
+to use gateway in favor of ingress.
+
+Typically, using gateway in istio requires:
+- deploy the actual proxies; the demo profile provides `istio-ingressgateway` and `istio-egressgateway`;
+- create `Gateway` resource, which instruct the proxy about what hosts/port to take charge of;
+- create `VirtualService` resource, which works similar for mesh internal routing, but applies to gateway.
+
+Note the egress gateway (along with virtual service) is used to send traffic to external destinations
+via selected nodes, either because we want more access control from a set of central nodes or only
+these nodes can access external destinations. Apart from egress gateway, users can also use the
+following approaches to access external network:
+- configuring envoy to allow access to any external service.
+- use a service entry (see below) to register an accessible external service inside the mesh (recommended).
+- configuring the istio sidecar to exclude external IPs from its remapped IP table.
+
+E.g. a gateway configuration selecting a gateway controller with HTTPS ingress traffic:
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: ext-host-gwy
+spec:
+  selector:
+    app: my-gateway-controller
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - ext-host.example.com
+    tls:
+      mode: SIMPLE
+      serverCertificate: /tmp/tls.crt
+      privateKey: /tmp/tls.key
+```
+
+**ServiceEntry (CRD)**
+
+The service entry is used to manually add services into the mesh registry. Once added, they can be
+treated as regular services in the mesh; this allows istio to manage traffics for services outside
+of the mesh.
+
+The use cases for service entry are:
+- allow selective external destination access when outbound policy is set to REGISTRY_ONLY
+- define timeout, fault injection, etc, for external destinations (via virtual service)
+- add service entry for services running on virtual machines
+- add service from other clusters to form a multi-cluster istio mesh
+
+Once added, hosts defined in ServiceEntry can be used in VirtualService and DestinationRule.
+
+E.g. declares a few external APIs accessed by internal applications over HTTPS:
+
+```yaml
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-svc-https
+spec:
+  hosts:
+  - api.dropboxapi.com
+  - www.googleapis.com
+  - api.facebook.com
+  location: MESH_EXTERNAL
+  ports:
+  - number: 443
+    name: https
+    protocol: TLS
+  resolution: DNS
+```
+
+**WorkloadEntry (CRD)**
+
+WorkloadEntry describes the properties of a non-Kubernetes workload such as VM or a bare metal
+server as it is are onboarded into the mesh. A `WorkloadEntry` must be accompanied by an istio
+`ServiceEntry` that selects the workload through the appropriate labels and provides the service
+definition for a `MESH_INTERNAL` service (hostnames, port properties, etc.). A ServiceEntry object
+can select multiple WorkloadEntries as well as Kubernetes Pods based on the label selector
+specified in the ServiceEntry. Conceptually, WorkloadEntry is equivalent to Pod.
+
+Note here, `MESH_INTERNAL` means any workload that's in the mesh, i.e. there is an envoy proxy
+running as a sidecar with the application, whether it's running in Kubernetes or in VM.
+
+E.g. a workload entry selected by a service entry (like pod selected by service in Kubernetes):
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: WorkloadEntry
+metadata:
+  name: vm1
+  namespace: ns1
+spec:
+  address: 1.1.1.1
+  labels:
+    app: foo
+    instance-id: vm-78ad2
+    class: vm
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: svc1
+  namespace: ns1
+spec:
+  hosts:
+  - svc1.internal.com
+  ports:
+  - number: 80
+    name: http
+    protocol: HTTP
+  resolution: STATIC
+  workloadSelector:
+    labels:
+      app: foo
+```
+
+**Sidecar (CRD)**
+
+By default, Istio will program all sidecar proxies in the mesh with the necessary configuration
+required to reach every workload instance in the mesh, as well as accept traffic on all the ports
+associated with the workload. This is usually not desirable due to security and performance reasons.
+The sidecar configuration is thus brought up to do the following:
+- Fine-tune the set of ports and protocols that an Envoy proxy accepts.
+- Limit the set of services that the Envoy proxy can reach.
+
+E.g. all services in the `bookinfo` namespace can only reach services running in the same namespace
+and the istio control plane:
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Sidecar
+metadata:
+  name: default
+  namespace: bookinfo
+spec:
+  egress:
+  - hosts:
+    - "./*"
+    - "istio-system/*"
+```
+
+## [Observability](https://istio.io/latest/docs/concepts/observability)
+
+Istio has robust monitoring, tracing and logging, as well as custom dashboard which provides
+visibility into application performance. All these features let you more effectively set, monitor,
+and enforce SLOs on services. As mentiond above, istio has all the data from mesh, thus allowing
+it to show every piece of traffic in the mesh, e.g. traffic flow.
+
+The main features of observability are:
+- Metrics: istio generates a set of service metrics based on the four "golden signals" of monitoring (latency, traffic, errors, and saturation).
+  - Proxy-level metrics: metrics specifically about envoy, e.g. `envoy_cluster_upstream_rq_completed`
+  - Service-level metrics: metrics for service communications. istio defines a set of [default metrics](https://istio.io/latest/docs/reference/config/policy-and-telemetry/metrics/)
+    (prefixed with `istio_`) and labels for each metric, and custom metrics can be added via configurations.
+  - Control plane metrics: metrics about istio itself.
+- Distributed traces: envoy proxies automatically generate trace spans on behalf of the applications they proxy, but it require that the applications forward the appropriate request context.
+- Access logs: access logs provide a way to monitor and understand behavior from the perspective of an individual workload instance; access logs are queried via envoy proxies.
+
+## [Security](https://istio.io/latest/docs/concepts/security)
 
 Istio provides the underlying secure communication channel, and manages authentication, authorization,
 and encryption of service communication at scale.
 
-## Platform Support
+Authentication has two policies:
+- Peer Authentication: authn for peer-to-peer communication
+- Request authentication: authn for external request
+
+Peer's identity come from platform service account, e.g. kubernetes service account; istio sidecar
+will automatically use service account to acquire certificate from istiod. External request's
+identity uses OIDC with JWT, operator needs to configure RequestAuthentication with correct issuer.
+
+Every envoy proxy runs an authorization engine, which is configured by istiod a single CRD API.
+Authorization is enabled implicitly, and can be applied to HTTP and TCP traffic.
+
+**PeerAuthentication (CRD)**
+
+A default `STRICT` policy for `foo` namespace:
+
+```yaml
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  name: "example-policy"
+  namespace: "foo"
+spec:
+  mtls:
+    mode: STRICT
+```
+
+For workload specific peer authentication, corresponding destination rule is required.
+
+**RequestAuthentication (CRD)**
+
+A request authentication policy that requires end-user JWT for the ingress gateway:
+
+```yaml
+apiVersion: "security.istio.io/v1beta1"
+kind: "RequestAuthentication"
+metadata:
+  name: "jwt-example"
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  jwtRules:
+  - issuer: "testing@secure.istio.io"
+    jwksUri: "https://raw.githubusercontent.com/istio/istio/release-1.6/security/tools/jwt/samples/jwks.json"
+```
+
+**AuthorizationPolicy (CRD)**
+
+Allows two sources, the `cluster.local/ns/default/sa/sleep` service account and the `dev` namespace,
+to access the workloads with the `app: httpbin` and `version: v1` labels in the `foo` namespace when
+requests sent have a valid JWT token.
+
+```yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+ name: httpbin
+ namespace: foo
+spec:
+ selector:
+   matchLabels:
+     app: httpbin
+     version: v1
+ action: ALLOW
+ rules:
+ - from:
+   - source:
+       principals: ["cluster.local/ns/default/sa/sleep"]
+   - source:
+       namespaces: ["dev"]
+   to:
+   - operation:
+       methods: ["GET"]
+   when:
+   - key: request.auth.claims[iss]
+     values: ["https://accounts.google.com"]
+```
+
+## [Extensibility](https://istio.io/latest/docs/concepts/wasm/)
+
+**EnvoyFilter (CRD)**
+
+Istio leverages envoy + wasm for extensibility: users can use a lot of envoy built-in filters for
+extra functionalities (like rate limiting, etc), and if necessary, can use Wasm to build custom
+filters. The extensibility is provided in case istio **control plane** is not able to provide the
+functionality via its abstraction, thus we can use envoy filter to program **data plane** directly.
+The extensibility is mostly used for policy enforcement.
+
+Pay attention:
+- EnvoyFilter CRD will maintain backward compatibility, but the compatibility of config data depends on envoy.
+- EnvoyFilter is namespaced, and there is a root namespace under which EnvoyFilter can take effect to all workloads.
+- Multiple EnvoyFilters can exists in a namespace and all patches will be processed sequentially (based on creation time).
+
+**Platform Support**
 
 Istio is platform-independent and designed to run in a variety of environments, including those
 spanning Cloud, on-premise, Kubernetes, Mesos, and more. You can deploy Istio on Kubernetes, or on
@@ -68,14 +448,7 @@ Nomad with Consul, etc.
 
 - *Date: 08/07/2017, v0.1.6*
 - *Date: 11/04/2018, v1.0.3*
-
-## Overview
-
-An istio service mesh is logically split into a data plane and a control plane.
-- The data plane is composed of a set of intelligent proxies (Envoy) deployed as sidecars that mediate
-  and control all network communication between microservices.
-- The control plane is responsible for managing and configuring proxies to route traffic, as well as
-  enforcing policies at runtime.
+- *Date: 07/27/2029, v1.6.5*
 
 ## Envoy
 
@@ -85,7 +458,12 @@ Kubernetes pod. This allows istio to extract a wealth of signals about traffic b
 which in turn can be used in Mixer to enforce policy decisions, and be sent to monitoring systems to
 provide information about the behavior of the entire mesh.
 
-## Mixer
+## Istiod
+
+In v1.5, all components (mixer, citadel, pilot, galley, injector) are merged into a single component
+istiod, which means istiod provides service discovery, configuration and certificate management.
+
+## Mixer (deprecated)
 
 Mixer is responsible for enforcing access control and usage policies across the service mesh and
 collecting telemetry data from the Envoy proxy and other services. The proxy extracts request level
@@ -121,7 +499,7 @@ ref: [google group](https://groups.google.com/forum/#!topic/istio-users/B1NA44QX
 - https://istio.io/docs/concepts/policy-and-control/mixer.html
 - https://istio.io/docs/concepts/policy-and-control/mixer-config.html
 
-## Pilot
+## Pilot (deprecated)
 
 Pilot is responsible for collecting and validating configuration and propagating it to the various
 istio components. It abstracts environment-specific implementation details from Mixer and Envoy,
@@ -179,7 +557,7 @@ spec:
 
 discovery provides sds, cds, rds for envoy.
 
-## Citadel
+## Citadel (deprecated)
 
 Citadel (istio-auth) provides strong service-to-service and end-user authentication using mutual TLS,
 with built-in identity and credential management. Istio auth provides three main functionalities:
@@ -193,7 +571,7 @@ with built-in identity and credential management. Istio auth provides three main
   management. It distribute key and certificate pair for each service account and rotate/revoke keys
   when necessary.
 
-## Galley
+## Galley (deprecated)
 
 Galley validates user authored Istio API configuration on behalf of the other Istio control plane
 components. Over time, Galley will take over responsibility as the top-level configuration ingestion,
@@ -201,33 +579,11 @@ processing and distribution component of Istio. It will be responsible for insul
 the Istio components from the details of obtaining user configuration from the underlying platform
 (e.g. Kubernetes).
 
-## Features
-
-Following is a list of key features from istio:
-
-- Dynamic Routing
-- Load balancing
-- Failure recovery
-- Rich metrics and monitoring
-- A/B testing
-- Canary releases
-- Rate limiting
-- Access control
-- Circuit breaker
-- End-to-end authentication
-- TLS termination
-- HTTP/2 & gRPC proxying
-- Health checks
-- Fault injection
-- Upgrade unencrypted traffic
-- Gradual rollout
-- Retries
-
-# Experiments
-
-## istio v0.1.6
+# Experiment (v0.1.6)
 
 *Date: 08/07/2017, v0.1.6*
+
+## Installation
 
 **Get istio**
 
@@ -284,10 +640,12 @@ default       kubernetes      10.0.0.1     <none>        443/TCP                
 kube-system   kube-dns        10.0.0.10    <none>        53/UDP,53/TCP                 5m        k8s-app=kube-dns
 ```
 
+## Components
+
 **Component details**
 
 `istio-pilot` contains two containers: one started with `pilot apiserver`, the other started with
-`pilot discovery`. The apiserver process exposes endpoints to CRUD istio config (as kubernetes tpr).
+`pilot discovery`. The apiserver process exposes endpoints to CRUD istio config (as kubernetes TPR).
 The discovery process implements envoy's SDS, CDS and RDS, which can be seen as propagating kubernetes
 information to all envoy proxies. As we can see below, envoy proxies configure istio-pilot as its
 source of discovery.
@@ -1519,9 +1877,13 @@ i.e.
 
 Each kubernetes service is a cluster in envoy. Each kubernetes pod is the service-node parameter in envoy.
 
+## Tasks
+
 **Task1: Integrating Services into the Mesh**
 
 The task creates two services (client and server) and investigates sidecar proxy.
+
+<details><summary>Run Application</summary><p>
 
 ```
 # Create applications.
@@ -1557,6 +1919,8 @@ $ kubectl logs ${SERVER} proxy | grep cd30da12-ee24-9429-b188-2d494017c083
 [2017-08-08T00:22:56.671Z] "GET / HTTP/1.1" 200 - 0 558 105 0 "-" "curl/7.47.0" "cd30da12-ee24-9429-b188-2d494017c083" "service-two" "127.0.0.1:8080"
 ```
 
+</p></details></br>
+
 Apart from the injected sidecar container, each pod also has init containers. One of them is used to
 enable core dump (debug); the other is used to transparently redirect all inbound and outbound traffic
 to the proxy. It is running as an init container because:
@@ -1565,6 +1929,8 @@ to the proxy. It is running as an init container because:
 
 Following is the iptable rules (code located at `pilot/docker/prepare_proxy.sh`). Note '-m owner'
 module is used to differentiate traffic from envoy.
+
+<details><summary>iptable rules</summary><p>
 
 ```
 # Generated by iptables-save v1.6.0 on Tue Aug  8 00:57:06 2017
@@ -1602,7 +1968,11 @@ COMMIT
 # Completed on Tue Aug  8 00:57:06 2017
 ```
 
+</p></details></br>
+
 UPDATE: Re-run the application, below is the cluster state and sidecar config:
+
+<details><summary>Cluster state</summary><p>
 
 ```
 kubectl get pods -o wide --all-namespaces
@@ -1628,6 +1998,8 @@ nginx           10.0.0.224   <none>        8888/TCP                      32m
 service-one     10.0.0.24    <none>        80/TCP                        5m
 service-two     10.0.0.217   <none>        80/TCP                        5m
 ```
+
+</p></details></br>
 
 <details><summary>Envoy sidecar config</summary><p>
 
@@ -2302,9 +2674,11 @@ This will send 50% requests to v1 and 50% requests to v3.
 
 For tracing, note that code change is needed from application side to propagete well-defined headers.
 
-## istio v0.2.2
+# Experiment (v0.2.2)
 
 *Date: 09/20/2017, v0.2.2*
+
+## Installation
 
 **Get istio**
 
@@ -2366,7 +2740,7 @@ $ export GATEWAY_URL=$(kubectl get po -l istio=ingress -o 'jsonpath={.items[0].s
 $ curl -o /dev/null -s -w "%{http_code}\n" http://${GATEWAY_URL}/productpage
 ```
 
-Current status:
+<details><summary>Current cluster status</summary><p>
 
 ```
 $ kubectl get pods --all-namespaces -o wide
@@ -2441,7 +2815,9 @@ stdios.config.istio.io                2h
 svcctrls.config.istio.io              2h
 ```
 
-**Component details**
+</p></details></br>
+
+## Components
 
 For pilot, only a single container's running, i.e. 'discovery'. Apart from cds, rds, sds, another
 discovery service, lds, is also added to pilot. As before, envoy config does not contain any detailed
@@ -2715,9 +3091,13 @@ productpage-v1-453580229-mww27   2/2       Running   0          2h        172.17
 
 The same approach applies to other proxies as well, i.e. egress, sidecar.
 
+## Tasks
+
 **Task4: Request Routing**
 
 By default, all requests will round robin to all pods under review service:
+
+<details><summary>Cluster and registration config</summary><p>
 
 ```
 $ curl 172.17.0.4:8080/v1/clusters/istio-proxy/sidecar~172.17.0.11~productpage-v1-453580229-mww27.default~default.svc.cluster.local | grep -C 8 reviews
@@ -2758,7 +3138,11 @@ $ curl 172.17.0.4:8080/v1/registration/reviews.default.svc.cluster.local\|http
  }
 ```
 
+</p></details></br>
+
 Create the route rule to direct all requests to version v1:
+
+<details><summary>Create route rule</summary><p>
 
 ```
 $ istioctl create -f samples/apps/bookinfo/rules/route-rule-all-v1.yaml
@@ -2814,6 +3198,8 @@ type: route-rule
 ---
 ```
 
+</p></details></br>
+
 Below is the config for review v1 after creating the route:
 
 ```
@@ -2856,6 +3242,8 @@ istioctl create -f samples/apps/bookinfo/rules/route-rule-reviews-test-v2.yaml
 ```
 
 With this route rule defined, we can take a look at routes in productpage service:
+
+<details><summary>Create route rule with content</summary><p>
 
 ```
 $ curl 172.17.0.4:8080/v1/routes/9080/istio-proxy/sidecar~172.17.0.11~productpage-v1-453580229-mww27.default~default.svc.cluster.local
@@ -2968,10 +3356,13 @@ $ curl 172.17.0.4:8080/v1/routes/9080/istio-proxy/sidecar~172.17.0.11~productpag
 }
 ```
 
+</p></details></br>
+
 Note the port is '9080'. This shows that sidecar proxy will conditionally proxy traffic from productpage
 to revies service. If we do the percentage based proxy, we'll also see changes from this endpont.
 
 **Task5: Rate Limiting (no success)**
+
 Note, the tutorial on official website is for pre0.2, the way mixer rules are created have changed:
 
 ```
@@ -3629,4 +4020,137 @@ $ kubectl exec productpage-v1-453580229-6h30z -c istio-proxy -- curl https://det
     </ADDRESS>
   </BODY>
 </HTML>
+```
+
+# Experiment (v1.6.5)
+
+## Installation
+
+```
+$ curl -L https://istio.io/downloadIstio | sh -
+...
+
+$ istioctl install --set profile=demo --set values.gateways.istio-ingressgateway.type=NodePort
+Detected that your cluster does not support third party JWT authentication. Falling back to less secure first party JWT. See https://istio.io/docs/ops/best-practices/security/#configure-third-party-service-account-tokens for details.
+✔ Istio core installed
+✔ Istiod installed
+✔ Egress gateways installed
+✔ Ingress gateways installed
+✔ Addons installed
+```
+
+Export Gateway information:
+
+```
+export INGRESS_HOST=$(kubectl get po -l istio=ingressgateway -n istio-system -o jsonpath='{.items[0].status.hostIP}')
+export INGRESS_PORT=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}')
+export SECURE_INGRESS_PORT=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}')
+export TCP_INGRESS_PORT=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="tcp")].nodePort}')
+export GATEWAY_URL=$INGRESS_HOST:$INGRESS_PORT
+```
+
+Install the bookinfo example:
+
+```
+# Make sure sidecar is injected.
+kubectl label namespace default istio-injection=enabled
+
+# Create the application.
+kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
+
+# Create default gateway for external access.
+kubectl apply -f samples/bookinfo/networking/bookinfo-gateway.yaml
+
+# Create default set of destination rules each service (version).
+kubectl apply -f samples/bookinfo/networking/destination-rule-all.yaml
+```
+
+To verify:
+
+```
+$ curl -s "http://${GATEWAY_URL}/productpage" | grep -o "<title>.*</title>"
+<title>Simple Bookstore App</title>
+```
+
+To cleanup:
+
+```
+$ bash ./samples/bookinfo/platform/kube/cleanup.sh
+...
+```
+
+## [Debugging](https://istio.io/latest/docs/ops/diagnostic-tools/proxy-cmd/)
+
+istioctl provides two subcommands to facilitate debugging: `proxy-status` and `proxy-config`.
+
+For example, after we created the routes to match user `jason` header, the route information is
+synced from istiod to envoy proxy of `productpage` service. We can query the envoy config via:
+
+<details><summary>istioctl proxy-config</summary><p>
+
+```
+$ istioctl proxy-config routes productpage-v1-7f4cc988c6-c7vwp --name 9080 -o json | jq
+[
+  {
+    "name": "9080",
+    "virtualHosts": [
+      ...
+      {
+        "name": "reviews.default.svc.cluster.local:9080",
+        "domains": [
+          ...
+        ],
+        "routes": [
+          {
+            "match": {
+              "prefix": "/",
+              "caseSensitive": true,
+              "headers": [
+                {
+                  "name": "end-user",
+                  "exactMatch": "jason"
+                }
+              ]
+            },
+            "route": {
+              "cluster": "outbound|9080|v2|reviews.default.svc.cluster.local",
+              "timeout": "0s",
+              ...
+            },
+            ...
+          },
+          {
+            "match": {
+              "prefix": "/"
+            },
+            "route": {
+              "cluster": "outbound|9080|v1|reviews.default.svc.cluster.local",
+              "timeout": "0s",
+            }
+            ...
+          }
+        ],
+        "includeRequestAttemptCount": true
+      }
+    ],
+    "validateClusters": false
+  }
+]
+```
+
+</p></details></br>
+
+9080 is the port name that the `review` service runs.
+
+The other set of commands include:
+
+```
+$ istioctl proxy-status
+...
+
+$ istioctl proxy-config listeners productpage-v1-7f4cc988c6-c7vwp -o json --address 0.0.0.0 --port 9080
+...
+
+$ istioctl proxy-config cluster productpage-v1-6c886ff494-7vxhs --fqdn reviews.default.svc.cluster.local -o json
+...
 ```

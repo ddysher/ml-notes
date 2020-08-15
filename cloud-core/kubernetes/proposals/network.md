@@ -401,10 +401,15 @@ For the purpose, the KEP includes a bunch of changes:
 - Formalize the Ingress class annotation into a field and an associated `IngressClass` resource.
 - Add support for non-Service Backend types, i.e. `ingress.spec.backend.resource`.
 
+Note that in `IngressClass`, apart from controller name field `ingressclass.spec.controller`, there
+is also an optional parameter field `ingressclass.spec.parameters`, which points to a custom resource
+containing configurations for the controller.
+
 *References*
 
 - [ingress API group KEP link](https://github.com/kubernetes/enhancements/blob/c71c21d2f0f4875ce8f84663190c61bd2beb64e2/keps/sig-network/20190125-ingress-api-group.md)
 - https://github.com/kubernetes/enhancements/issues/758
+- https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
 
 ## 20190423 - service lb finalizer
 

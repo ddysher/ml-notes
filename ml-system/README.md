@@ -96,6 +96,7 @@ performance.
 - [mmdnn](./model/mmdnn)
 - [graphpipe](./model/graphpipe)
 - [seldon](./model/seldon)
+- [cortex](./model/cortex)
 - [tensorrt](./model/tensorrt)
 - [openvino](./model/openvino)
 

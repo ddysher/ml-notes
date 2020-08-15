@@ -3,20 +3,9 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Overview](#overview)
-- [Concepts & Features](#concepts--features)
-  - [Template](#template)
-  - [Step](#step)
-  - [DAG](#dag)
-  - [Pod/Container](#podcontainer)
-  - [Parameter](#parameter)
-  - [Artifact](#artifact)
-  - [Artifact Repository](#artifact-repository)
-  - [Full Features](#full-features)
+- [Concepts](#concepts)
+- [Features](#features)
 - [Components](#components)
-  - [argo](#argo)
-  - [argoexec](#argoexec)
-  - [argo-ui](#argo-ui)
-  - [workflow controller](#workflow-controller)
 - [Related Projects](#related-projects)
   - [Argo CI (10/02/2018, no release)](#argo-ci-10022018-no-release)
   - [Argo CD (10/02/2018, v0.9.2)](#argo-cd-10022018-v092)
@@ -32,7 +21,8 @@
 
 # Overview
 
-Date: 02/15/2018, v2.0.0
+- *Date: 02/15/2018, v2.0.0*
+- *Date: 05/10/2020, v2.8.0*
 
 Argo is an open source project to provide container-native workflows for Kubernetes. A workflow is
 composed of one or more sequential and/or parallel steps. Eash step is implemented as a container
@@ -50,15 +40,15 @@ including parameter substitution, artifacts, scripting, loops, and recursive wor
 - Easily run compute intensive jobs for machine learning or data processing in a fraction of the time using Argo workflows on Kubernetes.
 - Run CI/CD pipelines natively on Kubernetes without configuring complex software development products.
 
-# Concepts & Features
+# Concepts
 
-## Template
+**Template**
 
 - A composable, reusable definition of a workflow or step within a workflow with support for parameterization.
 - Defined as a container, script (e.g. bash, python, javascript), or a series of workflow steps.
 - Accepts input parameters/artifacts and produce output parameters/artifacts.
 
-## Step
+**Step**
 
 - A unit of execution in an Argo workflow.
 - Represents a container, or defies a series of steps (e.g. nested workflows).
@@ -210,13 +200,13 @@ status:
 
 </p></details></br>
 
-## DAG
+**DAG**
 
 As an alternative to specifying sequences of steps, you can define the workflow as a graph by specifying
 the dependencies of each task. This can be simpler to maintain for complex workflows and allows for
 maximum parallelism when running tasks.
 
-## Pod/Container
+**Pod/Container**
 
 Each pod created to run a step in an Argo workflow consists of the following containers:
 - The `main` container which runs the user specified container or script
@@ -226,22 +216,22 @@ Each pod created to run a step in an Argo workflow consists of the following con
 
 For more information, see Experiments section.
 
-## Parameter
+**Parameter**
 
 The Argo CLI allows users to specify values for parameterized workflows before they are submitted
 to Kubernetes.
 
-## Artifact
+**Artifact**
 
 - A collection of files/directories that can be used as inputs or outputs to a step in a workflow.
 - Support for Git, HTTP, S3, Artifactory.
 
-## Artifact Repository
+**Artifact Repository**
 
 - A long term persistent storage of artifacts.
 - Support for S3, Artifactory.
 
-## Full Features
+# Features
 
 - DAG or Steps based declaration of workflows
 - Artifact support (S3, Artifactory, HTTP, Git, raw)
@@ -266,22 +256,22 @@ to Kubernetes.
 
 # Components
 
-## argo
+**argo**
 
 The command line interface.
 
-## argoexec
+**argoexec**
 
 argoexec is the executor sidecar to workflow containers, it has:
 - a `init` command to load artifacts
 - a `wait` command to save artifacts/parameters
 
-## argo-ui
+**argo-ui**
 
 argo-ui serves a web-based UI for argo. It starts an API server for argo APIs, which uses kubernetes
 javascript client to access CRDs.
 
-## workflow controller
+**workflow controller**
 
 Workflow controller is the core component in argo, it:
 - watches Workflow CRD and Pod from Kubernetes
@@ -408,8 +398,8 @@ and compares the current, live state against the desired target state (as specif
 
 **Application CRD**
 
-The Application CRD is the Kubernetes resource object representing a deployed application f
-instance in an environment. It is defined by two key pieces of information:
+The Application CRD is the Kubernetes resource object representing a deployed application instance
+in an environment. It is defined by two key pieces of information:
 - `source` reference to the desired state in git (repository, revision, path, environment)
 - `destination` reference to the target cluster and namespace.
 
@@ -1059,4 +1049,4 @@ status:
 
 ## More examples
 
-There are a lot of [examples from argo](https://github.com/argoproj/argo/blob/v2.1.0/examples/README.md).
+There are a lot of [examples from argo](https://github.com/argoproj/argo/blob/v2.1.0/examples).

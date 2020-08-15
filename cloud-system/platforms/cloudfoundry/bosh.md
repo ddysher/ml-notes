@@ -42,7 +42,12 @@ for Kubernetes.
 
 Kubo has been renamed to [CFCR (CloudFoundry Container Runtime)](https://www.cloudfoundry.org/container-runtime/)
 to better capture its scope.
+
 > Formerly known as Project Kubo, an incubating project within the Cloud Foundry Foundation initiated
 > by engineers at Google and Pivotal, the Kubernetes-powered, Kubernetes-certified CF Container
 > Runtime offers a uniform way to instantiate, deploy, and manage highly available Kubernetes
 > clusters on a cloud platform using CF BOSH.
+>
+> Kubernetes and CF BOSH together are a powerful combination. With CF BOSH managing the deployment
+> and lifecycle of your environment, you can achieve high availability for Kubernetes clusters, as
+> well as scaling, VM healing, and rolling upgrades.

@@ -66,7 +66,7 @@ Rancher provides cluster provisioning, including:
 - rancher hosted Kubernetes using RKE, with nodes from baremetal or cloudproviders
 - import existing Kubernetes
 
-Rancher also provides a set of cluster maintainence facilities, including:
+Rancher also provides a set of cluster maintenance facilities, including:
 - etcd backup/restore
 - clone cluster
 - certificate rotation

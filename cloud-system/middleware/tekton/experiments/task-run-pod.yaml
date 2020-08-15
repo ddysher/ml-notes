@@ -1,0 +1,183 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"tekton.dev/v1beta1","kind":"Task","metadata":{"annotations":{},"name":"echo-hello-world","namespace":"default"},"spec":{"steps":[{"args":["Hello World"],"command":["echo"],"image":"ubuntu","name":"echo"}]}}
+    pipeline.tekton.dev/release: devel
+    tekton.dev/ready: READY
+  creationTimestamp: "2020-05-10T14:47:13Z"
+  labels:
+    app.kubernetes.io/managed-by: tekton-pipelines
+    tekton.dev/task: echo-hello-world
+    tekton.dev/taskRun: echo-hello-world-task-run
+  name: echo-hello-world-task-run-pod-x4m2q
+  namespace: default
+  ownerReferences:
+  - apiVersion: tekton.dev/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: TaskRun
+    name: echo-hello-world-task-run
+    uid: e2813e51-7f5b-4967-9c60-961a262be46a
+  resourceVersion: "1160"
+  selfLink: /api/v1/namespaces/default/pods/echo-hello-world-task-run-pod-x4m2q
+  uid: ba56368d-6de2-4849-92f2-18184f20eafa
+spec:
+  containers:
+  - args:
+    - -wait_file
+    - /tekton/downward/ready
+    - -wait_file_content
+    - -post_file
+    - /tekton/tools/0
+    - -termination_path
+    - /tekton/termination
+    - -entrypoint
+    - echo
+    - --
+    - Hello World
+    command:
+    - /tekton/tools/entrypoint
+    env:
+    - name: HOME
+      value: /tekton/home
+    image: ubuntu
+    imagePullPolicy: Always
+    name: step-echo
+    resources:
+      requests:
+        cpu: "0"
+        ephemeral-storage: "0"
+        memory: "0"
+    terminationMessagePath: /tekton/termination
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /tekton/tools
+      name: tekton-internal-tools
+    - mountPath: /tekton/downward
+      name: tekton-internal-downward
+    - mountPath: /workspace
+      name: tekton-internal-workspace
+    - mountPath: /tekton/home
+      name: tekton-internal-home
+    - mountPath: /tekton/results
+      name: tekton-internal-results
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: default-token-w6srj
+      readOnly: true
+    workingDir: /workspace
+  dnsPolicy: ClusterFirst
+  enableServiceLinks: true
+  initContainers:
+  - command:
+    - cp
+    - /ko-app/entrypoint
+    - /tekton/tools/entrypoint
+    image: gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/entrypoint:v0.12.0@sha256:67f93630931aae98f449b5dfb764d80f7ada7c3c67950c1563ed4ec406fad2f9
+    imagePullPolicy: IfNotPresent
+    name: place-tools
+    resources: {}
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /tekton/tools
+      name: tekton-internal-tools
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: default-token-w6srj
+      readOnly: true
+  nodeName: 127.0.0.1
+  priority: 0
+  restartPolicy: Never
+  schedulerName: default-scheduler
+  securityContext: {}
+  serviceAccount: default
+  serviceAccountName: default
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - emptyDir: {}
+    name: tekton-internal-workspace
+  - emptyDir: {}
+    name: tekton-internal-home
+  - emptyDir: {}
+    name: tekton-internal-results
+  - emptyDir: {}
+    name: tekton-internal-tools
+  - downwardAPI:
+      defaultMode: 420
+      items:
+      - fieldRef:
+          apiVersion: v1
+          fieldPath: metadata.annotations['tekton.dev/ready']
+        path: ready
+    name: tekton-internal-downward
+  - name: default-token-w6srj
+    secret:
+      defaultMode: 420
+      secretName: default-token-w6srj
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2020-05-10T14:48:01Z"
+    reason: PodCompleted
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2020-05-10T14:48:42Z"
+    reason: PodCompleted
+    status: "False"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2020-05-10T14:48:42Z"
+    reason: PodCompleted
+    status: "False"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2020-05-10T14:47:13Z"
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: docker://0c0b194a9d8829a67e323c97cd838651f199018207749fb460f085cb9e2783f1
+    image: ubuntu:latest
+    imageID: docker-pullable://ubuntu@sha256:747d2dbbaaee995098c9792d99bd333c6783ce56150d1b11e333bbceed5c54d7
+    lastState: {}
+    name: step-echo
+    ready: false
+    restartCount: 0
+    state:
+      terminated:
+        containerID: docker://0c0b194a9d8829a67e323c97cd838651f199018207749fb460f085cb9e2783f1
+        exitCode: 0
+        finishedAt: "2020-05-10T14:48:41Z"
+        message: '[{"key":"StartedAt","value":"2020-05-10T14:48:41Z","resourceRef":{}}]'
+        reason: Completed
+        startedAt: "2020-05-10T14:48:39Z"
+  hostIP: 127.0.0.1
+  initContainerStatuses:
+  - containerID: docker://e493e29e5b710cc98099d734ecd3b6287b365a84839d966600e0568cb50b4afe
+    image: gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/entrypoint@sha256:67f93630931aae98f449b5dfb764d80f7ada7c3c67950c1563ed4ec406fad2f9
+    imageID: docker-pullable://gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/entrypoint@sha256:67f93630931aae98f449b5dfb764d80f7ada7c3c67950c1563ed4ec406fad2f9
+    lastState: {}
+    name: place-tools
+    ready: true
+    restartCount: 0
+    state:
+      terminated:
+        containerID: docker://e493e29e5b710cc98099d734ecd3b6287b365a84839d966600e0568cb50b4afe
+        exitCode: 0
+        finishedAt: "2020-05-10T14:48:00Z"
+        reason: Completed
+        startedAt: "2020-05-10T14:48:00Z"
+  phase: Succeeded
+  podIP: 172.17.0.6
+  qosClass: BestEffort
+  startTime: "2020-05-10T14:47:13Z"

@@ -1,0 +1,42 @@
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: feature-transformer
+  namespace: seldon
+  labels:
+    app: seldon
+spec:
+  name: feature-transformer
+  oauth_key: oauth-key
+  oauth_secret: oauth-secret
+  predictors:
+  - componentSpecs:
+    - spec:
+        containers:
+        - image: seldonio/mock_classifier_rest:1.2.1
+          imagePullPolicy: IfNotPresent
+          name: classifier
+          resources:
+            requests:
+              memory: 1Mi
+        - image: mean_transformer:1.2.1
+          imagePullPolicy: IfNotPresent
+          name: transformer
+          resources:
+            requests:
+              memory: 1Mi
+        terminationGracePeriodSeconds: 20
+    graph:
+      name: transformer
+      endpoint:
+        type: REST
+      type: TRANSFORMER
+      children:
+      - name: classifier
+        endpoint:
+          type: REST
+        type: MODEL
+    name: transformer
+    replicas: 1
+    labels:
+      version: v1

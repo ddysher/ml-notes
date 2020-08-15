@@ -3,12 +3,13 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [KEPs](#keps)
+  - [20171201 - cluster api](#20171201---cluster-api)
   - [20180707 - componentconfig api types to staging](#20180707---componentconfig-api-types-to-staging)
 - [Feature & Design](#feature--design)
-  - [(large) cluster registry](#large-cluster-registry)
   - [(large) federation v2](#large-federation-v2)
   - [(small) federation cluster selector](#small-federation-cluster-selector)
   - [(deprecated) federation v1](#deprecated-federation-v1)
+  - [(deprecated) cluster registry](#deprecated-cluster-registry)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -21,6 +22,105 @@
 - [SIG-Multicluster Community](https://github.com/kubernetes/community/tree/master/sig-multicluster)
 
 # KEPs
+
+## 20171201 - cluster api
+
+- *Date: 2020/06/26*
+
+Official introduction:
+
+> The Cluster API is a Kubernetes project to bring declarative, Kubernetes-style APIs to cluster
+> creation, configuration, and management. It provides optional, additive functionality on top of
+> core Kubernetes.
+
+The set of APIs proposed in cluster-api includes:
+- Cluster
+- Machine
+- MachineSet
+- MachineDeployment
+- MachineHealthcheck
+- etc
+
+<details><summary>CRDs created in cluster-api project</summary><p>
+
+```
+$ kubectl get crds | grep cluster.x-k8s.io
+clusters.cluster.x-k8s.io                            2020-06-26T08:02:31Z
+kubeadmconfigs.bootstrap.cluster.x-k8s.io            2020-06-26T08:02:35Z
+kubeadmconfigtemplates.bootstrap.cluster.x-k8s.io    2020-06-26T08:02:36Z
+kubeadmcontrolplanes.controlplane.cluster.x-k8s.io   2020-06-26T08:02:39Z
+machinedeployments.cluster.x-k8s.io                  2020-06-26T08:02:31Z
+machinehealthchecks.cluster.x-k8s.io                 2020-06-26T08:02:32Z
+machinepools.exp.cluster.x-k8s.io                    2020-06-26T08:02:32Z
+machines.cluster.x-k8s.io                            2020-06-26T08:02:32Z
+machinesets.cluster.x-k8s.io                         2020-06-26T08:02:32Z
+providers.clusterctl.cluster.x-k8s.io                2020-06-26T08:01:37Z
+```
+
+</p></details></br>
+
+The core controllers of cluster-api manage cluster lifecycle, machine lifecycle, etc, and a lot of
+provider-specific details are implemented outside of cluster-api (cluster-api defines rules around
+defining provider-specific APIs for conformance). There are two different kinds of providers:
+- bootstrap provider: provider that used to provision Kubernetes, e.g. kubeadm
+- infrastructure provider: provider that runs underline infrastructure, e.g. [cluster-api-provider-aws](https://github.com/kubernetes-sigs/cluster-api-provider-aws).
+
+The default bootstrap provider kubeadm is usually deployed with cluster-api, while infrastructure
+providers are added on-demand. Generally, both type of providers consist of:
+- controller: runs the core business logic
+- CRDs: provider-specific datastructure, and will be referenced by corresponding cluster-api CRDs, e.g.
+  - for infrastructure provider aws, the CRDs are awscluster, awsmachine, awsmachinetemplate
+  - for bootstrap provider kubeadm, the CRDs are kubeadmconfigs, kubeadmconfigtemplates, kubeadmcontrolplanes
+
+<details><summary>Run a minimal cluster-api</summary><p>
+
+```
+$ clusterctl init
+Fetching providers
+Installing cert-manager
+Waiting for cert-manager to be available...
+Installing Provider="cluster-api" Version="v0.3.7-alpha.0" TargetNamespace="capi-system"
+Installing Provider="bootstrap-kubeadm" Version="v0.3.7-alpha.0" TargetNamespace="capi-kubeadm-boots
+trap-system"
+Installing Provider="control-plane-kubeadm" Version="v0.3.7-alpha.0" TargetNamespace="capi-kubeadm-c
+ontrol-plane-system"
+
+Your management cluster has been initialized successfully!
+
+You can now create your first workload cluster by running the following:
+
+  clusterctl config cluster [name] --kubernetes-version [version] | kubectl apply -f -
+
+
+$ kubectl get pods --all-namespaces
+NAMESPACE                           NAME                                                             READY   STATUS    RESTARTS   AGE
+capi-kubeadm-bootstrap-system       capi-kubeadm-bootstrap-controller-manager-d5fddb749-hsqfk        2/2     Running   0          89m
+capi-kubeadm-control-plane-system   capi-kubeadm-control-plane-controller-manager-56c9f665d9-549bq   2/2     Running   0          89m
+capi-system                         capi-controller-manager-7b8d44f7fb-26h8v                         2/2     Running   0          89m
+capi-webhook-system                 capi-controller-manager-858464588c-p24xl                         2/2     Running   0          89m
+capi-webhook-system                 capi-kubeadm-bootstrap-controller-manager-6f597c49c4-wt7pc       2/2     Running   0          89m
+capi-webhook-system                 capi-kubeadm-control-plane-controller-manager-549dc9f898-ngd8h   2/2     Running   1          89m
+cert-manager                        cert-manager-544d659678-kkb8k                                    1/1     Running   0          90m
+cert-manager                        cert-manager-cainjector-64c9f978d7-84mvw                         1/1     Running   0          90m
+cert-manager                        cert-manager-webhook-5855bb8c8c-z796r                            1/1     Running   0          90m
+kube-system                         coredns-66bff467f8-75sjx                                         1/1     Running   0          102m
+kube-system                         coredns-66bff467f8-pnz8t                                         1/1     Running   0          102m
+kube-system                         etcd-kind-control-plane                                          1/1     Running   0          102m
+kube-system                         kindnet-qdbh8                                                    1/1     Running   0          102m
+kube-system                         kube-apiserver-kind-control-plane                                1/1     Running   0          102m
+kube-system                         kube-controller-manager-kind-control-plane                       1/1     Running   0          102m
+kube-system                         kube-proxy-4ckzr                                                 1/1     Running   0          102m
+kube-system                         kube-scheduler-kind-control-plane                                1/1     Running   0          102m
+local-path-storage                  local-path-provisioner-bd4bb6b75-khzng                           1/1     Running   0          102m
+```
+
+</p></details></br>
+
+*References*
+
+- [cluster api KEP link](https://github.com/kubernetes/enhancements/blob/f9e23231f8484922d62b7b06e72053bb49e551f0/keps/sig-cluster-lifecycle/clusterapi/0003-cluster-api.md)
+- https://github.com/kubernetes-sigs/cluster-api
+- https://cluster-api.sigs.k8s.io/introduction.html
 
 ## 20180707 - componentconfig api types to staging
 
@@ -80,24 +180,6 @@ In general, every core cluster component should:
 - [componentconfig api types to staging KEP link](https://github.com/kubernetes/enhancements/blob/d7306177022e9af921e5f6196b0dd592d01e5c28/keps/sig-cluster-lifecycle/wgs/0014-20180707-componentconfig-api-types-to-staging.md)
 
 # Feature & Design
-
-## (large) cluster registry
-
-- *Date: 07/23/2018, v1.11, alpha*
-
-The cluster registry is just an API definition, intended to be used for other projects with different
-kind of use cases. It is helpful to think of it as a registry for `kubeconfig` file. A couple
-important notes from the design doc:
-- Cluster API object has `spec` and `status`, though `status` is not yet defined.
-- There is no built-in auth construct in cluster registry (e.g. something like `cluster.spec.auth.token`).
-  The project uses pointers for this purpose, e.g. pointers to secret. This is to make the API easier
-  to reason about - we don't want to make cluster registry a credential store.
-- There is no controller or operator; it is up to the registry consumer to implement any control logic.
-
-*References*
-
-- [cluster registry design doc](https://github.com/kubernetes/community/blob/1171a23ab2e4f8950cb1b88a007e2aae8c7bb194/contributors/design-proposals/multicluster/cluster-registry/api-design.md)
-- https://github.com/kubernetes/cluster-registry
 
 ## (large) federation v2
 
@@ -376,3 +458,21 @@ cluster has a sophisticated dns resolution, see above proposal.
 - https://github.com/kubernetes/federation
 - https://github.com/kelseyhightower/kubernetes-cluster-federation
 - https://medium.com/@shakamunyi/kubernetes-federation-achieving-higher-availability-for-your-applications-1d527e5e4b3
+
+## (deprecated) cluster registry
+
+- *Date: 07/23/2018, v1.11, alpha*
+
+The cluster registry is just an API definition, intended to be used for other projects with different
+kind of use cases. It is helpful to think of it as a registry for `kubeconfig` file. A couple
+important notes from the design doc:
+- Cluster API object has `spec` and `status`, though `status` is not yet defined.
+- There is no built-in auth construct in cluster registry (e.g. something like `cluster.spec.auth.token`).
+  The project uses pointers for this purpose, e.g. pointers to secret. This is to make the API easier
+  to reason about - we don't want to make cluster registry a credential store.
+- There is no controller or operator; it is up to the registry consumer to implement any control logic.
+
+*References*
+
+- [cluster registry design doc](https://github.com/kubernetes/community/blob/1171a23ab2e4f8950cb1b88a007e2aae8c7bb194/contributors/design-proposals/multicluster/cluster-registry/api-design.md)
+- https://github.com/kubernetes/cluster-registry

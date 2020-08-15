@@ -1,0 +1,54 @@
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: sentiment-pipeline
+  namespace: seldon
+  labels:
+    app: seldon
+spec:
+  annotations:
+    project_name: sentiment-pipeline
+    deployment_version: 0.1.0
+    seldon.io/rest-read-timeout: '100000'
+    seldon.io/rest-connection-timeout: '100000'
+    seldon.io/grpc-read-timeout: '100000'
+  name: sentiment-pipeline
+  oauth_key: oauth-key
+  oauth_secret: oauth-secret
+  predictors:
+  - componentSpecs:
+    - spec:
+        # Note we set text-tagging & summarize-text containers to root user since
+        # they need to access "/root" directory to download vocabulary.
+        containers:
+        - name: sentiment-analysis
+          image: sentiment-analysis:1.2.1
+        - name: text-tagging
+          image: text-tagging:1.2.1
+          securityContext:
+            runAsUser: 0
+        - name: summarize-text
+          image: summarize-text:1.2.1
+          securityContext:
+            runAsUser: 0
+        terminationGracePeriodSeconds: 20
+    graph:
+      name: sentiment-analysis
+      endpoint:
+        type: REST
+      type: MODEL
+      children:
+      - name: text-tagging
+        endpoint:
+          type: REST
+        type: MODEL
+        children:
+        - name: summarize-text
+          endpoint:
+            type: REST
+          type: MODEL
+          children: []
+    name: example
+    replicas: 1
+    annotations:
+      predictor_version: v1

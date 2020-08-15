@@ -9,13 +9,16 @@
   - [Service (or ServiceClass)](#service-or-serviceclass)
   - [Instance (or ServiceInstance)](#instance-or-serviceinstance)
   - [Binding (or ServiceBinding)](#binding-or-servicebinding)
-- [Service Catalog (v0.1.4)](#service-catalog-v014)
+- [Service Catalog Updates](#service-catalog-updates)
+  - [Service Catalog v0.1.4](#service-catalog-v014)
+  - [Service Catalog v0.3.0](#service-catalog-v030)
+  - [References](#references)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Service Catalog (v0.0.9)
 
-Date: 06/10/2017, kubernetes v1.6, project v0.0.9
+*Date: 06/10/2017, kubernetes v1.6, project v0.0.9*
 
 ## Overview
 
@@ -35,6 +38,11 @@ serviceY --- service broker2
            /
 serviceZ --
 ```
+
+Here,
+- `service...` is the actual consumable service, e.g. MySQL
+- `service broker` is the implementation of service broker API, e.g. a public cloud offering services
+- `service catalog apiserver/controller` is the components of this project, to integrate service broker with Kubernetes
 
 ## Application (e.g. kubernetes deployment)
 
@@ -154,16 +162,26 @@ Now that applications in kubernetes can use this secret to consume the service i
 - https://github.com/kubernetes-incubator/service-catalog/blob/v0.0.9/docs/
 - https://github.com/kubernetes-incubator/service-catalog/blob/v0.0.9/docs/design.md
 - https://github.com/kubernetes-incubator/service-catalog/blob/v0.0.9/docs/walkthrough.md
-- file://$HOME/code/projects/middleware/servicebroker/servicebroker.md
 
-# Service Catalog (v0.1.4)
+# Service Catalog Updates
 
-Date: 01/21/2019, kubernetes v1.9, project v0.1.4
+## Service Catalog v0.1.4
+
+*Date: 01/21/2019, kubernetes v1.9*
 
 There is no major updates, expect that now the project use Kubernetes API aggregation feature,
 instead of just CRDs. Also, CRD names are updated.
 
-*References*
+## Service Catalog v0.3.0
+
+*Date: 05/29/2020, kubernetes v1.18*
+
+Newer releases contains following main update:
+- Migrate from API aggregation to CRD....
+- Support both namespace-scope & cluster-scope service broker
+
+## References
 
 - https://kubernetes.io/docs/concepts/extend-kubernetes/service-catalog/
 - https://github.com/kubernetes-incubator/service-catalog/blob/v0.1.4/docs/
+- https://github.com/kubernetes-incubator/service-catalog/blob/v0.3.0/docs/

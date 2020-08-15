@@ -8,36 +8,36 @@
   - [IaaS](#iaas)
 - [Application](#application)
   - [Packaging](#packaging)
-  - [Specification](#specification)
-- [Microservice](#microservice)
-  - [Runtime](#runtime)
-  - [APIGateway](#apigateway)
-  - [Servicemesh](#servicemesh)
+  - [Framework](#framework)
   - [Serverless](#serverless)
+  - [EdgeCompute](#edgecompute)
+  - [Specification](#specification)
+- [Container](#container)
+  - [Runtime](#runtime)
+  - [Build](#build)
+  - [Registry](#registry)
   - [Specification](#specification-1)
-- [Middleware](#middleware)
-  - [Workflow](#workflow)
-  - [Messaging](#messaging)
 - [Insight](#insight)
   - [Monitoring](#monitoring)
   - [Logging](#logging)
   - [Tracing](#tracing)
   - [Specification](#specification-2)
-- [Container](#container)
-  - [Runtime](#runtime-1)
-  - [Image](#image)
-  - [Registry](#registry)
-  - [Specification](#specification-3)
-- [Network](#network)
-  - [Agents](#agents)
-  - [Proxy](#proxy)
-  - [Misc](#misc)
+- [Middleware](#middleware)
+  - [Workflow](#workflow)
+  - [Messaging](#messaging)
 - [Storage](#storage)
   - [Filesystem](#filesystem)
   - [Database](#database)
   - [Management](#management)
+- [Network](#network)
+  - [Agent](#agent)
+  - [Server](#server)
+  - [APIGateway](#apigateway)
+  - [Servicemesh](#servicemesh)
+  - [Specification](#specification-3)
 - [Security](#security)
   - [AuthN/Z](#authnz)
+  - [Policy](#policy)
   - [Container](#container-1)
 - [System](#system)
   - [Virtualization](#virtualization)
@@ -56,7 +56,7 @@
 - [kubesphere](./platforms/kubesphere)
 - [rainbond](./platforms/simple.md#rainbond)
 
-For more Kubernetes centric projects, see [kubernetes projects](../cloud-core/kubernetes/projects).
+_**For more Kubernetes centric projects, see [kubernetes projects](../cloud-core/kubernetes/projects).**_
 
 ## PaaS
 
@@ -67,73 +67,80 @@ For more Kubernetes centric projects, see [kubernetes projects](../cloud-core/ku
 ## IaaS
 
 - [openstack](./platforms/openstack)
+- [opennebula](./platforms/simple.md#opennebula)
 
 # Application
 
 ## Packaging
 
-- [buildpacks](./application/buildpacks/buildpacks.md)
-- [duffle (cnab implementation)](https://duffle.sh/)
+- [buildpacks](./application/packaging/buildpacks)
 
-## Specification
+## Framework
 
-- [servicebroker](./application/servicebroker)
-- [oam](https://github.com/oam-dev/)
-- [cnab](./application/cnab)
-
-# Microservice
-
-## Runtime
-
-- [spring](./microservice/runtime/spring)
-- [dapr](./microservice/runtime/dapr)
-- [micro](./microservice/runtime/micro)
-
-## APIGateway
-
-- [gloo](https://docs.solo.io/gloo/latest/)
-- [ambassador](./microservice/apigateway/ambassador)
-
-## Servicemesh
-
-- [istio](../cloud-core/istio)
-- [linkerd](./microservice/servicemesh/linkerd)
-- [kuma](./microservice/servicemesh/kuma)
-- [maesh](./microservice/servicemesh/maesh)
-- [consul](./microservice/servicemesh/consul)
-- [supergloo](./microservice/servicemesh/supergloo)
-- [meshery](./microservice/servicemesh/meshery/)
+- [spring](./application/framework/spring)
+- [dapr](./application/framework/dapr)
+- [micro](./application/framework/micro)
 
 ## Serverless
 
-- [fnproject](./microservice/serverless/fnproject)
-- [ironfunctions](./microservice/serverless/ironfunctions)
-- [fission](./microservice/serverless/fission)
-- [kubeless](./microservice/serverless/kubeless)
-- [knative](./microservice/serverless/knative)
-- [nuclio](./microservice/serverless/nuclio)
-- [openfaas](./microservice/serverless/openfaas)
-- [openwhisk](./microservice/serverless/openwhisk)
+- [fnproject](./application/serverless/fnproject)
+- [ironfunctions](./application/serverless/ironfunctions)
+- [fission](./application/serverless/fission)
+- [kubeless](./application/serverless/kubeless)
+- [knative](./application/serverless/knative)
+- [nuclio](./application/serverless/nuclio)
+- [openfaas](./application/serverless/openfaas)
+- [openwhisk](./application/serverless/openwhisk)
 - [riff](https://projectriff.io/)
 
-For comparisions of the projects, refer to [README](./microservice/serverless/README.md).
+## EdgeCompute
+
+- [kubeedge](./application/edgecompute/kubeedge)
 
 ## Specification
 
-- [smi](./microservice/servicemesh/smi)
-- [cloudevents](./microservice/serverless/cloudevents)
+- [oam](./application/packaging/oam)
+- [cnab](./application/packaging/cnab)
+- [servicebroker](./application/framework/servicebroker)
+- [cloudevents](./application/serverless/cloudevents)
 - [serverless workflow](https://github.com/cncf/wg-serverless/blob/master/workflow/spec)
 
-# Middleware
+# Container
 
-## Workflow
+## Runtime
 
-- [argoproj](./middleware/argoproj)
-- [luigi](./middleware/luigi)
+- [docker](../cloud-core/docker)
+- [containerd](./container/runtime/containerd.md)
+- [nvidia-docker](./container/runtime/nvidia.md)
+- [runc](./container/runtime/runc.md)
+- [runv](./container/runtime/runv.md)
+- [rkt](./container/runtime/rkt.md)
+- [cri-o](./container/runtime/cri.md#cri-o)
+- [kata](https://github.com/kata-containers)
+- [podman](./container/simple.md#podman)
 
-## Messaging
+## Build
 
-- [nats](./middleware/nats)
+- [jib](./container/build/jib)
+- [s2i](./container/build/s2i)
+- [img](./container/simple.md#img)
+- [kaniko](./container/build/kaniko)
+- [buildah](./container/simple.md#buildah)
+
+## Registry
+
+- [harbor](./container/registry/harbor)
+- [dragonfly](./container/registry/dragonfly)
+- [kraken](./container/registry/kraken)
+- [oras](./container/registry/oras)
+- [skopeo](./container/simple.md#skopeo)
+
+## Specification
+
+- [oci-specs](./container/oci-specs.md)
+- [cni](./container/cni.md)
+- [cri](./container/cri.md)
+- [csi](https://github.com/container-storage-interface/spec)
 
 # Insight
 
@@ -157,52 +164,17 @@ For comparisions of the projects, refer to [README](./microservice/serverless/RE
 - [opentelemetry](./insight/specifications/opentelemetry.md)
 - [openmetrics](./insight/specifications/openmetrics.md)
 
-# Container
+# Middleware
 
-## Runtime
+## Workflow
 
-- [docker](../cloud-core/docker)
-- [containerd](./container/containerd.md)
-- [nvidia-docker](./container/nvidia.md)
-- [runc](./container/runc.md)
-- [runv](./container/runv.md)
-- [rkt](./container/rkt.md)
+- [argoproj](./middleware/argoproj)
+- [luigi](./middleware/luigi)
+- [tekton](./middleware/tekton)
 
-## Image
+## Messaging
 
-- [jib](./container/jib.md)
-- [s2i](./container/s2i.md)
-
-## Registry
-
-- [dragonfly](./container/dragonfly.md)
-- [kraken](./container/kraken.md)
-- [oras](./container/oras.md)
-
-## Specification
-
-- [oci-specs](./container/oci-specs.md)
-- [cni](./container/cni.md)
-- [cri](./container/cri.md)
-- [csi](https://github.com/container-storage-interface/spec)
-
-# Network
-
-## Agents
-
-- [calico](./network/calico)
-- [canal](./network/canal)
-- [flannel](./network/flannel)
-- [weave](./network/weave)
-
-## Proxy
-
-- [envoy](./network/envoy)
-- [openresty](./network/openresty)
-
-## Misc
-
-- [coredns](./network/coredns)
+- [nats](./middleware/nats)
 
 # Storage
 
@@ -221,15 +193,53 @@ For comparisions of the projects, refer to [README](./microservice/serverless/RE
 - [heketi](./storage/heketi)
 - [noobaa](./storage/simple.md#noobaa)
 
+# Network
+
+## Agent
+
+- [calico](./network/agent/calico)
+- [canal](./network/agent/canal)
+- [flannel](./network/agent/flannel)
+- [weave](./network/agent/weave)
+- [consul](./network/agent/consul)
+
+## Server
+
+- [envoy](./network/server/envoy)
+- [openresty](./network/server/openresty)
+- [coredns](./network/server/coredns)
+
+## APIGateway
+
+- [gloo](https://docs.solo.io/gloo/latest/)
+- [ambassador](./network/apigateway/ambassador)
+
+## Servicemesh
+
+- [istio](../cloud-core/istio)
+- [linkerd](./network/servicemesh/linkerd)
+- [kuma](./network/servicemesh/kuma)
+- [maesh](./network/servicemesh/maesh)
+- [supergloo](./network/servicemesh/supergloo)
+- [osm](./network/servicemesh/osm)
+- [meshery](./network/servicemesh/meshery/)
+
+## Specification
+
+- [smi](./network/servicemesh/smi)
+
 # Security
 
 ## AuthN/Z
 
 - [dex](./security/dex)
 
-## Container
+## Policy
 
 - [trireme](./security/trireme)
+
+## Container
+
 - [anchore](./security/simple.md#anchore)
 - [clair](./security/simple.md#clair)
 

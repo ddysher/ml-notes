@@ -5,6 +5,7 @@
 - [KEPs](#keps)
   - [20170814 - bounding self labeling kubelets](#20170814---bounding-self-labeling-kubelets)
   - [20190711 - external credential providers](#20190711---external-credential-providers)
+  - [kep-1687 - hierarchical namespaces subproject](#kep-1687---hierarchical-namespaces-subproject)
 - [Feature & Design](#feature--design)
   - [(large) node authorizer, aka, node restriction](#large-node-authorizer-aka-node-restriction)
   - [(large) tls certificates in kubernetes](#large-tls-certificates-in-kubernetes)
@@ -181,6 +182,19 @@ The proposal chooses exec-based mechanism in favor of network-based one, due to:
 
 - [external credential providers KEP link](https://github.com/kubernetes/enhancements/blob/master/keps/sig-auth/20190711-external-credential-providers.md])
 - https://github.com/kubernetes/enhancements/issues/541
+
+## kep-1687 - hierarchical namespaces subproject
+
+- *Date: 2020/06/26*
+
+The KEP is about organizing hierarchical namespaces (HNC) subproject into a standalone project in
+Kubernetes ecosystem, not about proposing the design of HNC into Kubernetes core.
+
+For HNC project details, see "kubernetes/projects".
+
+*References*
+
+- [hierarchical namespaces subproject KEP link](https://github.com/kubernetes/enhancements/tree/f9e23231f8484922d62b7b06e72053bb49e551f0/keps/sig-auth/1687-hierarchical-namespaces-subproject)
 
 # Feature & Design
 

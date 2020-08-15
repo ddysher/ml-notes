@@ -15,6 +15,7 @@
   - [20190221 - liveness holdoff, aka, startup probe](#20190221---liveness-holdoff-aka-startup-probe)
   - [20190226 - pod overhead](#20190226---pod-overhead)
   - [20190920 - pod pid namespace sharing](#20190920---pod-pid-namespace-sharing)
+  - [1867 - disable-accelerator-usage-metrics](#1867---disable-accelerator-usage-metrics)
 - [Feature & Design](#feature--design)
   - [(large) container runtime interface (cri)](#large-container-runtime-interface-cri)
   - [(large) dynamic kubelet configuration](#large-dynamic-kubelet-configuration)
@@ -836,6 +837,22 @@ and to v1 spec `Pod.Spec`. Now each Pod can individually enable sharing PID name
 - [pod pid namespace design proposal](https://github.com/kubernetes/community/blob/b5c1e2c14ef3c6384b52e3de908131e687029072/contributors/design-proposals/node/pod-pid-namespace.md)
 - https://github.com/kubernetes/kubernetes/issues/48937
 - https://www.ianlewis.org/en/almighty-pause-container
+
+## 1867 - disable-accelerator-usage-metrics
+
+- *Date: 07/31/2020, v1.18, beta*
+
+In [accelerator monitoring proposal](#medium-accelerator-monitoring), Kubelet will query and expose
+accelerator information via `/stats/summary` API. However, it is hard to maintain, less flexible,
+and requires Kubelet chagnes in order to add new accelerators.
+
+In [compute device assignment KEP](#20180911---compute-device-assignment), Kubelet exposes compute
+device binding information; therefore, third-party vendors can use the pod resource API and expose
+metrics through their own metrics container.
+
+*References*
+
+- [disable-accelerator-usage-metrics KEP link](https://github.com/kubernetes/enhancements/tree/83873ef7fff7fbf61b4f80fdd1369a36c44104ea/keps/sig-node/1867-disable-accelerator-usage-metrics)
 
 # Feature & Design
 

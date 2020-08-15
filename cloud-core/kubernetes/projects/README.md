@@ -2,7 +2,38 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [Networking](#networking)
+- [Application](#application)
+  - [operator-framework](#operator-framework)
+  - [service-catalog](#service-catalog)
+  - [kubeapps](#kubeapps)
+  - [kubecarrier](#kubecarrier)
+  - [kruise](#kruise)
+  - [application](#application)
+  - [(deprecated) operatorkit](#deprecated-operatorkit)
+  - [(deprecated) k8s-appcontroller](#deprecated-k8s-appcontroller)
+- [Developer](#developer)
+  - [draft](#draft)
+  - [codegen](#codegen)
+  - [metacontroller](#metacontroller)
+- [Templating & Packaging](#templating--packaging)
+  - [helm](#helm)
+  - [kustomize](#kustomize)
+  - [kpt](#kpt)
+  - [(deprecated) ksonnet](#deprecated-ksonnet)
+- [Scheduling](#scheduling)
+  - [kube-batch](#kube-batch)
+  - [volcano](#volcano)
+- [Insight & Scaling](#insight--scaling)
+  - [k8s-prometheus-adaptor](#k8s-prometheus-adaptor)
+  - [addon-resizer](#addon-resizer)
+  - [cluster autoscaler](#cluster-autoscaler)
+  - [keda](#keda)
+  - [kuberhealthy](#kuberhealthy)
+  - [(deprecated) resorcerer](#deprecated-resorcerer)
+- [Storage](#storage)
+  - [external-storage](#external-storage)
+  - [trident](#trident)
+- [Network](#network)
   - [antrea](#antrea)
   - [multus-cni](#multus-cni)
   - [metallb](#metallb)
@@ -15,22 +46,15 @@
   - [cni-ipvlan-vpc-k8s](#cni-ipvlan-vpc-k8s)
   - [(deprecated) service-loadbalancer](#deprecated-service-loadbalancer)
   - [(deprecated) cni-genie](#deprecated-cni-genie)
-- [Storage](#storage)
-  - [external-storage](#external-storage)
-  - [trident](#trident)
 - [Security](#security)
   - [audit2rbac](#audit2rbac)
+  - [cert-manager](#cert-manager)
   - [kyverno](#kyverno)
   - [k-rail](#k-rail)
   - [polaris](#polaris)
+  - [sealed-secrets](#sealed-secrets)
   - [kube-rbac-proxy](#kube-rbac-proxy)
-- [Scheduling](#scheduling)
-  - [kube-batch](#kube-batch)
-  - [volcano](#volcano)
-  - [(deprecated) resorcerer](#deprecated-resorcerer)
-- [Virtualization](#virtualization)
-  - [kubevirt](#kubevirt)
-  - [virtlet](#virtlet)
+  - [hierarchical namespaces controller](#hierarchical-namespaces-controller)
 - [Node & Resource](#node--resource)
   - [gpushare](#gpushare)
   - [kubegpu](#kubegpu)
@@ -41,36 +65,348 @@
   - [kubespray](#kubespray)
   - [kops](#kops)
   - [kubeadm](#kubeadm)
-  - [veloro](#veloro)
+  - [velero](#velero)
+  - [clusterlint](#clusterlint)
   - [kargo vs. kops. vs kubeadm](#kargo-vs-kops-vs-kubeadm)
   - [metal3](#metal3)
   - [(deprecated) kaptaind](#deprecated-kaptaind)
   - [(deprecated) kismatic](#deprecated-kismatic)
-- [Insight](#insight)
-  - [k8s-prometheus-adaptor](#k8s-prometheus-adaptor)
-  - [addon-resizer](#addon-resizer)
-  - [cluster autoscaler](#cluster-autoscaler)
-- [Application](#application)
-  - [operatorkit](#operatorkit)
-  - [service-catalog](#service-catalog)
-  - [kubeapps](#kubeapps)
-  - [kruise](#kruise)
-  - [application](#application)
-  - [(deprecated) k8s-appcontroller](#deprecated-k8s-appcontroller)
-- [Developer](#developer)
-  - [draft](#draft)
-  - [codegen](#codegen)
-  - [metacontroller](#metacontroller)
-- [Templating & Packaging](#templating--packaging)
-  - [helm](#helm)
-  - [kustomize](#kustomize)
-  - [kpt](#kpt)
-  - [(deprecated) ksonnet](#deprecated-ksonnet)
-- [References](#references)
+- [Virtualization](#virtualization)
+  - [kubevirt](#kubevirt)
+  - [virtlet](#virtlet)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# Networking
+# Application
+
+## operator-framework
+
+link: [operator-framework](./operator-framework)
+
+## service-catalog
+
+link: [service-catalog](./service-catalog)
+
+## kubeapps
+
+link: [kubeapps](./kubeapps)
+
+## kubecarrier
+
+*Date: 05/29/2020, v0.1.0*
+
+[kubecarrier](https://github.com/kubermatic/kubecarrier) is a tool for managing services across
+multi-cluster. It is claimed to be a complement to OLM as it can work with existing CRDs and already
+installed Operators. It is also claimed to be a complement to KubeFed as it works on a higher-level
+where application is assigned to a pre-determined cluster (management cluster), and application can
+be distributed via KubeFed.
+
+kuebcarrier workflow:
+- installing kubecarrier in a management cluster;
+- create `Account` with different roles in the management cluster, i.e. `tenant` to consume resources
+  and `provider` to provide resources;
+- registering new cluster to kubecarrier via `ServiceCluster`;
+- create `CatalogEntrySet` CRD which points an underline CRD (e.g. represents a DB) in service cluster;
+  - kubecarrier will create **a copy of the CRD & an internal CRD in the management cluster**
+  - the internal CRD is a "public interface" and will be used to provide services to different account
+- create `Catalog` CRD to actually share the DB to tenants.
+
+## kruise
+
+link: [kruise](./kruise)
+
+## application
+
+*Date: 09/12/2019*
+
+[Application](https://github.com/kubernetes-sigs/application) is a project from sig-apps to provide
+rich metadata to describe an aplication, which might contain Deployment/StatefulSet/Service, etc.
+The application controller doesn't create any concrete resources, e.g. in the following example,
+the controller won't create Service, Deployment and StatefulSet for users:
+
+<details><summary>Application Example</summary><p>
+
+```yaml
+apiVersion: app.k8s.io/v1beta1
+kind: Application
+metadata:
+  name: "wordpress-01"
+  labels:
+    app.kubernetes.io/name: "wordpress-01"
+    app.kubernetes.io/version: "3"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "wordpress-01"
+  componentKinds:
+  - group: core
+    kind: Service
+  - group: apps
+    kind: Deployment
+  - group: apps
+    kind: StatefulSet
+  descriptor:
+    type: "wordpress"
+    version: "4.9.4"
+    description: "WordPress is open source software you can use to create a beautiful website, blog, or app."
+    ...
+```
+
+</p></details></br>
+
+However, it does aggregate a bit information (only a little), primarily object status. In another
+word, the CRD is mainly used to display application-level information.
+
+## (deprecated) operatorkit
+
+*Date: 07/28/2017*
+
+OperatorKit aims to unify the effort for implementing operators. Scopes of the project includes:
+- setup, configuration, and validation of a CLI framework
+- common logging handlers
+- setup of common clients such as for CRD APIs, kube-apiserver API, leader election and analytics
+- code for easy leadership election management
+- easy management of k8s resources, such as reconciliation loops for CRDs and utility function to set up common cluster resources possibly at a later stage
+- boilerplate code for registering, validating and configuring CRD specs
+- resource monitoring, providing utilities to handle channels, decoding, caching and error handling
+- enforce and supply best practices for disaster recovery, e.g. if the operator is on a rebooting node
+- allow easy exposure of APIs if the operator wants to export data
+
+*References*
+
+- [operatorkit design doc](https://docs.google.com/document/d/1NJhFcNezJyLM952eaYVcdfIQFQYWsAx4oTaA82-Frdk/edit)
+
+## (deprecated) k8s-appcontroller
+
+*Date: 09/12/2019*
+
+[k8s-AppController](https://github.com/Mirantis/k8s-AppController/) is a *deprecated* project from
+mirantis for managing complext deployment. The core datastructure is `Dependency` and `Definition`.
+To some extend, the project is not a real application controller, but rather a workflow controller.
+
+Dependency is used to define application dependencies, e.g. following yaml claims the dependency
+between `pod/eventually-alive-pod` and `job/test-job`.
+
+<details><summary>Dependency Example</summary><p>
+
+```yaml
+apiVersion: appcontroller.k8s/v1alpha1
+kind: Dependency
+metadata:
+  name: dependency-1
+parent: pod/eventually-alive-pod
+child: job/test-job
+```
+
+</p></details></br>
+
+To control startup sequence, we need to wrap native Kubernetes resources into `Definition`, e.g.
+the following command convert native job resource into definition.
+
+<details><summary>Definition Example</summary><p>
+
+```yaml
+$ cat job.yaml | docker run -i --rm mirantis/k8s-appcontroller:latest kubeac wrap
+apiVersion: appcontroller.k8s/v1alpha1
+kind: Definition
+metadata:
+  name: job-pi
+job:
+  apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: pi
+  spec:
+    template:
+      metadata:
+        name: pi
+      spec:
+        containers:
+        - name: pi
+          image: perl:5.28-slim
+          command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+        restartPolicy: Never
+```
+
+</p></details></br>
+
+# Developer
+
+## draft
+
+*Date: 06/06/2017, no release*
+
+[draft](https://github.com/Azure/draft) helps developers containerize applications, and helps with
+development cycles, i.e. debug in local development then deploy applications to kubernetes. A typical
+workflow:
+- `draft create` to create containerized applications based on so-called packs
+- `draft up` to deploy applications to kubernetes
+
+draft has a server component running inside kubernetes, and a local daemon to interact with the
+server (if configured to watch chanages). Once code changes, the daemon will send changes to server
+component. The server component will build the docker image and pushes the image to a registry, as
+well as instructing helm to install the Helm chart.
+
+*References*
+
+- http://blog.kubernetes.io/2017/05/draft-kubernetes-container-development.html
+- [draft design doc](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/design.md)
+- [draft installation](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/install.md)
+- [draft getting started](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/getting-started.md)
+
+## codegen
+
+link: [codegen](./codegen)
+
+## metacontroller
+
+*Date: 06/01/2018*
+
+[Metacontroller](https://github.com/GoogleCloudPlatform/metacontroller) is a controller for controller;
+developyer only needs to write hooks for processing registered events (with CRDs), and metacontroller
+handles the rest.
+
+# Templating & Packaging
+
+## helm
+
+link: [helm](./helm)
+
+## kustomize
+
+link: [kustomize](./kustomize)
+
+## kpt
+
+link: [kpt](./kpt)
+
+## (deprecated) ksonnet
+
+*Date: 02/22/2018, v0.8.0*
+
+Ksonnet has relatively good documentation, read following docs in order:
+- https://ksonnet.io/docs/tutorial
+- https://ksonnet.io/docs/concepts
+- https://ksonnet.io/tour/welcome
+
+*Reference*
+
+- https://stackoverflow.com/questions/48867912/draft-vs-helm-vs-ksonnet-complementing-or-replacing
+- https://blog.openshift.com/kubernetes-state-app-templating/
+
+# Scheduling
+
+## kube-batch
+
+link: [kube-batch](./kube-batch)
+
+## volcano
+
+[volcano](https://volcano.sh) is built on top of kube-batch to provide batch scheduling. volcano's
+scheduler is a direct copy of kube-batch, with the following additions:
+- a new `Job` API (independent of core Kubernetes Job), allowing users to create a batch job directly from volcano
+  - the `Job` API provides features like multiple PodTemplate, better ErrorHandling, etc
+- a new admission controller component to validate Job resource
+- a new controller component to reconcile status, including job-controller, podgroup-controller,
+  queue-controller, garbagecollector-controller, etc
+- few additional actions and plugins, compared to kube-batch
+
+```
+$ kubectl get pods -n volcano-system
+NAME                                   READY   STATUS      RESTARTS   AGE
+volcano-admission-5bd5756f79-9lj4t     1/1     Running     0          49m
+volcano-admission-init-x2jlk           0/1     Completed   0          49m
+volcano-controllers-687948d9c8-q8fkm   1/1     Running     0          49m
+volcano-scheduler-79f569766f-rnwt6     1/1     Running     0          49m
+```
+
+# Insight & Scaling
+
+## k8s-prometheus-adaptor
+
+*Date: 01/14/2018*
+
+The project is an implementation of Kubernetes custom metrics API, using the framework [here](https://github.com/kubernetes-incubator/custom-metrics-apiserver).
+Basically, it registers itself as a third-party API service. Kubernetes core API server will proxy
+request to it, i.e. client sends requst to endpoint `/apis/custom-metrics.metrics.k8s.io/v1beta1`
+just like other standard requests; kubernetes API server then proxies the request to this adapter,
+which translates the request to prometheus query language and return the metrics result.
+
+*References*
+
+- [deploy adaptor](https://github.com/DirectXMan12/k8s-prometheus-adapter/tree/master/deploy)
+
+## addon-resizer
+
+*Date: 08/06/2017, Kubernetes v1.7, no release*
+
+[addon-resizer](https://github.com/kubernetes/autoscaler/tree/master/addon-resizer) is a container
+which watches another container in a deployment, and vertically scales the dependent container up
+and down (only one container).  It is usually deployed as a sidecar or as another deployment.
+addon-resizer is also called nanny, i.e. babysitter.
+
+**workflow**
+
+addon-resizer polls kubernetes every configurable (default 10s) interval to decide if scaling is
+needed for its dependent container. At each bookkeeping, it retrieves number of nodes from kubernetes,
+and uses the information, along with command line flags, to estimate a resource requirements. If the
+resource requirement is different from current value, it scales the container.
+
+## cluster autoscaler
+
+*Date: 08/06/2017, Kubernetes v1.7, project status beta*
+
+[Cluster Autoscaler](https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler) is a
+standalone program that adjusts the size of a Kubernetes cluster to meet the current needs. It
+assumes kubernetes nodes are running undera cloud provider node group. Cluster Autoscaler has
+extensive documentation, ref [here](https://github.com/kubernetes/autoscaler/tree/cluster-autoscaler-0.6.0/cluster-autoscaler).
+
+## keda
+
+link: [keda](./keda)
+
+## kuberhealthy
+
+*Date: 06/22/2020, v2.2*
+
+[KuberHealth](https://github.com/Comcast/kuberhealthy) is an operator to check Kubernetes health.
+It contains a list of pre-defined "synthetic" checks and allows user to create their own checks.
+The workflow in kuberhealthy is simple:
+- user create a custom resource `khcheck` to define the check
+- operator creates checker pod, which will in turn create "check resources", e.g. run a ds to check node status
+- operator collectos the check status information and reports it via promethes metrics, influxdb, etc
+
+## (deprecated) resorcerer
+
+*Date: 08/06/2017, no release*
+
+[resorcerer](https://github.com/openshift-demos/resorcerer) is an experimental implementation of
+VPA, i.e. to scale container resource requirements. It is a daemonset running in kubernetes cluster,
+use prometheus to retrieve container metrics, and provides rest API for users. resorcerer is very
+simple, the core of it is three APIs:
+
+```
+GET /observation/$POD/$CONTAINER?period=$PERIOD
+GET /recommendation/$POD/$CONTAINER
+POST /adjustment/$POD/$CONTAINER cpu=$CPUSEC mem=$MEMINBYTES
+```
+
+Calling the first API will execute a pre-defined query against prometheus to observe container
+resource usage. It will save the value in memory. The second API will simply return the usage data;
+and the last apply the recommendation to kubernetes (according to how it is deployed, i.e.
+deployment, standalone pod, etc).
+
+# Storage
+
+## external-storage
+
+link: [external-storage](./external-storage)
+
+## trident
+
+link: [trident](./trident)
+
+# Network
 
 ## antrea
 
@@ -214,16 +550,6 @@ Essentially, it is a proxy to underline cni.
 - [high level design](https://github.com/Huawei-PaaS/CNI-Genie/blob/8a35c2c0fe05ecfd967be6952a9d5154bf071655/docs/HLD.md)
 - [feature set](https://github.com/Huawei-PaaS/CNI-Genie/blob/8a35c2c0fe05ecfd967be6952a9d5154bf071655/docs/CNIGenieFeatureSet.md)
 
-# Storage
-
-## external-storage
-
-link: [external-storage](./external-storage)
-
-## trident
-
-link: [trident](./trident)
-
 # Security
 
 ## audit2rbac
@@ -232,6 +558,48 @@ link: [trident](./trident)
 
 [audit2rbac](https://github.com/liggitt/audit2rbac) converts advanced audit log (audit.Event) to
 rbac rules (rbac.Role, rbac.RoleBinding, etc)
+
+## cert-manager
+
+*Date: 07/15/2020*
+
+[cert-manager](https://github.com/jetstack/cert-manager) is a native Kubernetes certificate management
+controller. It can help with issuing certificates from a variety of sources, such as Let's Encrypt,
+HashiCorp Vault, Venafi, a simple signing key pair, or self signed. It will ensure certificates are
+valid and up to date, and attempt to renew certificates at a configured time before expiry. One of
+the primary use cases is automatically request certificates for ingress endpoints.
+
+The concepts in cert-manager are (also created as CRDs in Kubernetes):
+- Issuer
+- ClusterIssuer
+- Certificate
+- CertificateRequest
+- Challenge
+- Order
+
+The components in cert-manager are:
+
+```
+$ kubectl get pods -n cert-manager
+NAME                                      READY   STATUS    RESTARTS   AGE
+cert-manager-7747db9d88-tdlsq             1/1     Running   0          4h30m
+cert-manager-cainjector-87c85c6ff-gtb72   1/1     Running   0          4h30m
+cert-manager-webhook-64dc9fff44-j7568     1/1     Running   0          4h30m
+```
+
+Following is a brief steps when using cert-manager with ingress resource:
+- install cert-manager & nginx-ingress controller
+- assign a DNS name, e.g. `example.com` to `1.1.1.1`
+- deploy a demo application serving an insecure connection
+- create a let's encrypt `Issuer` defined in cert-manager, the core information includes,
+  - `email`: a registered account address
+  - `privateKeySecretRef`: secret to store key/cert pair
+  - `solvers`: the solver which is used to solve tls [challenge](https://letsencrypt.org/docs/challenge-types/), i.e. http01, dns01
+- deploy a TLS ingress resource, which points to the previous issuer via `cert-manager.io/issuer` label.
+
+After the following steps, under the hood, cert-manager will create `Challenge` and `Order` CRDs
+(end-user will never need to create the resources); it will automatically answer challenges from
+let's encrypt, and save the issued key/cert pair in the named secret.
 
 ## kyverno
 
@@ -267,6 +635,61 @@ polaris contains three independent components:
 - an admission controller to ensure policy
 - a command line to test YAML configuration
 
+## sealed-secrets
+
+*Date: 05/26/2020, v0.12.4*
+
+[sealed-secrets](https://github.com/bitnami-labs/sealed-secrets) is a tool for managing one-way
+encrypted secrets.
+
+> Problem: "I can manage all my K8s config in git, except Secrets."
+>
+> Solution: Encrypt your Secret into a SealedSecret, which is safe to store - even to a public
+> repository. The SealedSecret can be decrypted only by the controller running in the target cluster
+> and nobody else (not even the original author) is able to obtain the original Secret from the
+> SealedSecret.
+
+The project contains a client side `kubeseal` and a controller running in the cluster. The controller
+will reference a cert/key pair in a Kubernetes secret, and will use the key to encrypt/decrypt user
+secrets. A new CRD called `SealedSecret` is created to manage `Secret`, similar to the relationship
+of `Deployment` and `Pod`.
+
+To use:
+
+```
+# install
+$ helm install --namespace kube-system --name my-release stable/sealed-secrets
+
+# create a secret file
+$ echo "apiVersion: v1
+kind: Secret
+metadata:
+  name: secret1
+type: Opaque
+data:
+  username: YWRtaW4=            # echo -n 'admin' | base64
+  password: MWYyZDFlMmU2N2Rm    # echo -n '1f2d1e2e67df' | base64
+" > secret1.yaml
+
+# seal it
+$ kubeseal --format yaml --controller-name my-release-sealed-secrets < secret1.yaml > sealed-secret1.yaml
+
+# then create sealed-secret
+$ kubectl create -f sealed-secret1.yaml
+sealedsecret.bitnami.com/secret1 created
+
+# find the managed secret
+$ kubectl get secret
+NAME                  TYPE                                  DATA   AGE
+default-token-7c9vz   kubernetes.io/service-account-token   3      20h
+secret1               Opaque                                2      27s
+
+$ kubectl get sealedsecrets.bitnami.com
+NAME      AGE
+secret1   27s
+
+```
+
 ## kube-rbac-proxy
 
 *Date: 04/30/2020, alpha*
@@ -299,88 +722,93 @@ In general, kube-rbac-proxy runs as a reverse proxy sidecar alongside the compon
 There is no iptables magic: external system will call kube-rbac-proxy first, which will perform
 authN/Z and proxy traffic to upstream (usually at localhost).
 
-# Scheduling
+## hierarchical namespaces controller
 
-## kube-batch
+- *Date: 2020/06/26*
 
-link: [kube-batch](./kube-batch)
+The HNC subproject provides a mechanism to manage multiple namespaces into trees, to allow more
+management capabilities around namespaces. The project is part of multi-tenancy working group, which
+is sponsored by sig-auth. The motivation is:
+- to manage policies across multiple namespaces
+  - HNC has explicit configurations about what resources to deal with, and in what mode (propragate, ignore, etc)
+  - an alternative approach is to use labels to manage all namespaces, ref: [namespace-configuration-operator](https://github.com/redhat-cop/namespace-configuration-operator)
+- to allow teams to create namespaces themselves without having cluster-wide priviledges
+  - HNC uses the concept of subnamespaces, and will create namespaces on behave of users
+  - teams that wish to manage subnamespaces only need to be granted access to `subnamespaceanchor` CRD
 
-## volcano
-
-[volcano](https://volcano.sh) is built on top of kube-batch to provide batch scheduling. volcano's
-scheduler is a direct copy of kube-batch, with the following additions:
-- a new `Job` API (independent of core Kubernetes Job), allowing users to create a batch job directly from volcano
-  - the `Job` API provides features like multiple PodTemplate, better ErrorHandling, etc
-- a new admission controller component to validate Job resource
-- a new controller component to reconcile status, including job-controller, podgroup-controller,
-  queue-controller, garbagecollector-controller, etc
-- few additional actions and plugins, compared to kube-batch
-
-```
-$ kubectl get pods -n volcano-system
-NAME                                   READY   STATUS      RESTARTS   AGE
-volcano-admission-5bd5756f79-9lj4t     1/1     Running     0          49m
-volcano-admission-init-x2jlk           0/1     Completed   0          49m
-volcano-controllers-687948d9c8-q8fkm   1/1     Running     0          49m
-volcano-scheduler-79f569766f-rnwt6     1/1     Running     0          49m
-```
-
-## (deprecated) resorcerer
-
-*Date: 08/06/2017, no release*
-
-[resorcerer](https://github.com/openshift-demos/resorcerer) is an experimental implementation of
-VPA, i.e. to scale container resource requirements. It is a daemonset running in kubernetes cluster,
-use prometheus to retrieve container metrics, and provides rest API for users. resorcerer is very
-simple, the core of it is three APIs:
+The installed components are:
 
 ```
-GET /observation/$POD/$CONTAINER?period=$PERIOD
-GET /recommendation/$POD/$CONTAINER
-POST /adjustment/$POD/$CONTAINER cpu=$CPUSEC mem=$MEMINBYTES
+$ kubectl get crd
+NAME                                   CREATED AT
+hierarchyconfigurations.hnc.x-k8s.io   2020-06-26T04:52:28Z
+hncconfigurations.hnc.x-k8s.io         2020-06-26T04:52:28Z
+subnamespaceanchors.hnc.x-k8s.io       2020-06-26T04:52:28Z
+
+$ kubectl get all -n hnc-system
+NAME                                         READY   STATUS    RESTARTS   AGE
+pod/hnc-controller-manager-cf545bf66-pr5gx   2/2     Running   0          56m
+
+NAME                                             TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
+service/hnc-controller-manager-metrics-service   ClusterIP   10.0.0.219   <none>        8443/TCP   56m
+service/hnc-webhook-service                      ClusterIP   10.0.0.154   <none>        443/TCP    56m
+
+...
 ```
 
-Calling the first API will execute a pre-defined query against prometheus to observe container
-resource usage. It will save the value in memory. The second API will simply return the usage data;
-and the last apply the recommendation to kubernetes (according to how it is deployed, i.e.
-deployment, standalone pod, etc).
+Here,
+- `hncconfigurations` is a cluster scope config about how HNC behaves;
+- `subnamespaceanchors` represents subnamespaces of a parent namespace; it is created under the parent namespace
+- `hierarchyconfigurations` represents hierarchy of a namespace; it is created for each namespace
 
-# Virtualization
+<details><summary>Few design considerations</summary><p>
 
-## kubevirt
+> By default, HNC only propagates RBAC Roles and RoleBindings. However, you can configure HNC to
+> propagate any other Kind of object, including custom resources. If you create objects of these
+> kinds in a parent namespace, it will automatically be copied into any descendant namespaces as
+> well. You cannot modify these propagated copies; HNC’s admission controllers will attempt to stop
+> you from editing them, and if you bypass the controllers, HNC will overwrite them.
+>
+> Every propagated object in HNC is given the `hnc.x-k8s.io/inheritedFrom` label. The value of this
+> label indicates the namespace that contains the original object. The HNC admission controller will
+> prevent you from adding or removing this label, but if you manage to add it, HNC will likely
+> promptly delete the object (believing that the source object has been deleted), while if you
+> manage to delete it, HNC will simply overwrite the object anyway.
+>
+> While the hierarchy is defined in the `HierarchicalConfiguration` object, it is reflected on the
+> namespaces themselves via HNC-managed labels.
+>
+> Any user (or service account) with the ability to create or update the hierarchical configuration
+> of a namespace is known as an administrator of that namespace from HNC's perspective, even if they
+> have no other permissions within that namespace. On the other hand, even if you create a root
+> namespace (via kubectl create namespace foo), you are not an administrator of it (from HNC's
+> perspective) unless you also have update permissions on the hierarchical config.
+>
+> Deleting namespaces is very dangerous, and deleting subnamespaces can result in entire subtrees of
+> namespaces being deleted as well. Therefore, you may set the `allowCascadingDelete` field either
+> on the child namespace, on its parent, or (if the parent is a subnamespace itself) on its parent,
+> and so on.
+>
+> Changing parent of a namespace is dangerous. In general, to change the parent of your namespace N
+> from A to B, you must have the following privileges:
+> - You must be the admin of the highest namespace that will no longer be an ancestor of namespace N after this change, in order to confirm that you are happy to lose your privileges in namespace N.
+> - You must be the admin of namespace B, in order to acknowledge that sensitive objects from B may be copied into namespace N.
+>
+> Conditions are reported as part of the status of the `HierarchicalConfiguration` object in each
+> namespace, are summarized across the entire cluster in the status of the `HNCConfiguration` object,
+> and are exposed via the hnc/namespace_conditions metric. Every condition contains a machine-readable
+> code, a human-readable message, and an optional list of objects that are affected by the condition.
+> For example:
+> - The `CritCycle` condition is used if you somehow bypass the validating webhook and create a cycle.
+> - The `CannotPropagate` condition indicates that an object in this namespace cannot be propagated
+>   to other namespaces. This condition is displayed in the source namespace.
 
-link: [kubevirt](./kubevirt)
-
-## virtlet
-
-*Date: 10/03/2018, v1.4.0*
-
-[virtlet](https://github.com/Mirantis/virtlet) is created from Mirantis.
-
-virtlet is a Kubernetes CRI implementation for running VM workloads. It uses [criproxy](https://github.com/Mirantis/criproxy)
-to proxy requests from kubelet to virtlet (in order to support multiple runtime). Note this can be
-deprecated in favor of Kubernetes 1.12 new feature `RuntimeClass`.
-
-Virtlet consists of the following components:
-- virtlet manager - implements CRI interface for virtualization and image handling
-- libvirt instance
-- tapmanager which is responsible for managing VM networking
-- vmwrapper which is responsible for setting up the environment for emulator
-- emulator, currently qemu with KVM support (with possibility to disable KVM)
-
-Note that virlet has only a single running component (deployed as daemonset):
-- qemu and libvirt are installed in `virtlet-base` dockerfile
-- virtlet manager and tapmanager are running as separate goroutines
-
-Working with virtlet is similar to regular operations in Kubernetes, you create a Pod and request
-virtlet as sandbox runtime, then a VM will be created via virtlet and its status is reported back
-in Pod status, e.g. Pod IP is the VM's IP.
+</p></details></br>
 
 *References*
 
-- [introduction and comparison to other similar projects](https://www.mirantis.com/blog/virtlet-run-vms-as-kubernetes-pods/)
-- [virtlet architecture](https://github.com/Mirantis/virtlet/blob/v1.4.0/docs/architecture.md)
-- [virtlet deployment](https://github.com/Mirantis/virtlet/blob/v1.4.0/deploy/real-cluster.md)
+- [hnc how-to](https://github.com/kubernetes-sigs/multi-tenancy/blob/hnc-v0.4/incubator/hnc/docs/user-guide/how-to.md)
+- [hnc concepts](https://github.com/kubernetes-sigs/multi-tenancy/blob/hnc-v0.4/incubator/hnc/docs/user-guide/concepts.md)
 
 # Node & Resource
 
@@ -528,14 +956,24 @@ tools. In addition, to use kubeadm, users need to do extra preparation, e.g. dow
 setup CNI networking, etc.
 
 The set of commands in kubeadm include:
-- kubeadm init to bootstrap the initial Kubernetes control-plane node.
-- kubeadm join to bootstrap a Kubernetes worker node or an additional control plane node, and join it to the cluster.
-- kubeadm upgrade to upgrade a Kubernetes cluster to a newer version.
-- kubeadm reset to revert any changes made to this host by kubeadm init or kubeadm join.
+- `kubeadm init` to bootstrap the initial Kubernetes control-plane node.
+- `kubeadm join` to bootstrap a Kubernetes worker node or an additional control plane node, and join it to the cluster.
+- `kubeadm upgrade` to upgrade a Kubernetes cluster to a newer version.
+- `kubeadm reset` to revert any changes made to this host by kubeadm init or kubeadm join.
 
-## veloro
+## velero
 
-https://github.com/vmware-tanzu/velero
+link: [velero](./velero)
+
+## clusterlint
+
+[clusterlint](https://github.com/digitalocean/clusterlint) is a project from DigitalOcean that
+checks a Kubernetes cluster conforms to a set of best practices, include:
+- security configurations
+- webhook configurations
+- resource configurations
+
+The tool is mainly used before running an upgrade of DOKS, DigitalOcean Kubernetes Service.
 
 ## kargo vs. kops. vs kubeadm
 
@@ -638,301 +1076,39 @@ installation, kismatic does hosts validation, kubernetes smoke test.
 - https://github.com/apprenda/kismatic/blob/v1.3.1/docs/PLAN.md
 - https://github.com/apprenda/kismatic/blob/v1.3.1/docs/PROVISION.md
 
-# Insight
+# Virtualization
 
-## k8s-prometheus-adaptor
+## kubevirt
 
-*Date: 01/14/2018*
+link: [kubevirt](./kubevirt)
 
-The project is an implementation of Kubernetes custom metrics API, using the framework [here](https://github.com/kubernetes-incubator/custom-metrics-apiserver).
-Basically, it registers itself as a third-party API service. Kubernetes core API server will proxy
-request to it, i.e. client sends requst to endpoint `/apis/custom-metrics.metrics.k8s.io/v1beta1`
-just like other standard requests; kubernetes API server then proxies the request to this adapter,
-which translates the request to prometheus query language and return the metrics result.
+## virtlet
 
-*References*
+*Date: 10/03/2018, v1.4.0*
 
-- [deploy adaptor](https://github.com/DirectXMan12/k8s-prometheus-adapter/tree/master/deploy)
+[virtlet](https://github.com/Mirantis/virtlet) is created from Mirantis.
 
-## addon-resizer
+virtlet is a Kubernetes CRI implementation for running VM workloads. It uses [criproxy](https://github.com/Mirantis/criproxy)
+to proxy requests from kubelet to virtlet (in order to support multiple runtime). Note this can be
+deprecated in favor of Kubernetes 1.12 new feature `RuntimeClass`.
 
-*Date: 08/06/2017, Kubernetes v1.7, no release*
+Virtlet consists of the following components:
+- virtlet manager - implements CRI interface for virtualization and image handling
+- libvirt instance
+- tapmanager which is responsible for managing VM networking
+- vmwrapper which is responsible for setting up the environment for emulator
+- emulator, currently qemu with KVM support (with possibility to disable KVM)
 
-[addon-resizer](https://github.com/kubernetes/autoscaler/tree/master/addon-resizer) is a container
-which watches another container in a deployment, and vertically scales the dependent container up
-and down (only one container).  It is usually deployed as a sidecar or as another deployment.
-addon-resizer is also called nanny, i.e. babysitter.
+Note that virlet has only a single running component (deployed as daemonset):
+- qemu and libvirt are installed in `virtlet-base` dockerfile
+- virtlet manager and tapmanager are running as separate goroutines
 
-**workflow**
-
-addon-resizer polls kubernetes every configurable (default 10s) interval to decide if scaling is
-needed for its dependent container. At each bookkeeping, it retrieves number of nodes from kubernetes,
-and uses the information, along with command line flags, to estimate a resource requirements. If the
-resource requirement is different from current value, it scales the container.
-
-## cluster autoscaler
-
-*Date: 08/06/2017, Kubernetes v1.7, project status beta*
-
-[Cluster Autoscaler](https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler) is a
-standalone program that adjusts the size of a Kubernetes cluster to meet the current needs. It
-assumes kubernetes nodes are running undera cloud provider node group. Cluster Autoscaler has
-extensive documentation, ref [here](https://github.com/kubernetes/autoscaler/tree/cluster-autoscaler-0.6.0/cluster-autoscaler).
-
-# Application
-
-## operatorkit
-
-*Date: 07/28/2017*
-
-OperatorKit aims to unify the effort for implementing operators. Scopes of the project includes:
-- setup, configuration, and validation of a CLI framework
-- common logging handlers
-- setup of common clients such as for CRD APIs, kube-apiserver API, leader election and analytics
-- code for easy leadership election management
-- easy management of k8s resources, such as reconciliation loops for CRDs and utility function to set up common cluster resources possibly at a later stage
-- boilerplate code for registering, validating and configuring CRD specs
-- resource monitoring, providing utilities to handle channels, decoding, caching and error handling
-- enforce and supply best practices for disaster recovery, e.g. if the operator is on a rebooting node
-- allow easy exposure of APIs if the operator wants to export data
+Working with virtlet is similar to regular operations in Kubernetes, you create a Pod and request
+virtlet as sandbox runtime, then a VM will be created via virtlet and its status is reported back
+in Pod status, e.g. Pod IP is the VM's IP.
 
 *References*
 
-- [operatorkit design doc](https://docs.google.com/document/d/1NJhFcNezJyLM952eaYVcdfIQFQYWsAx4oTaA82-Frdk/edit)
-
-## service-catalog
-
-link: [service-catalog](./service-catalog)
-
-## kubeapps
-
-[kubeapps](https://github.com/kubeapps/kubeapps) is a web-based UI for deploying and managing
-applications in Kubernetes clusters.
-
-## kruise
-
-*Date: 07/07/2019*
-
-[kruise](https://github.com/openkruise/kruise) is a set of controllers to automate application
-management in Kubernetes. It contains (for now) three controllers:
-- Advanced StatefulSet
-- BroadcastJob
-- SidecarSet
-
-The main offering from `Advanced StatefulSet` is in-place update of container image, which works by
-updating revision labels of `kruise.StatefulSet` and patching container image. Kubelet will restart
-container whose image has been updated (kubelet itself will not restart Pod). On the other hand, the
-regular `StatefulSet` in Kubernetes will delete Pods first, then create new Pods.
-
-## application
-
-*Date: 09/12/2019*
-
-[Application](https://github.com/kubernetes-sigs/application) is a project from sig-apps to provide
-rich metadata to describe an aplication, which might contain Deployment/StatefulSet/Service, etc.
-The application controller doesn't create any concrete resources, e.g. in the following example,
-the controller won't create Service, Deployment and StatefulSet for users:
-
-```yaml
-apiVersion: app.k8s.io/v1beta1
-kind: Application
-metadata:
-  name: "wordpress-01"
-  labels:
-    app.kubernetes.io/name: "wordpress-01"
-    app.kubernetes.io/version: "3"
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: "wordpress-01"
-  componentKinds:
-  - group: core
-    kind: Service
-  - group: apps
-    kind: Deployment
-  - group: apps
-    kind: StatefulSet
-  descriptor:
-    type: "wordpress"
-    version: "4.9.4"
-    description: "WordPress is open source software you can use to create a beautiful website, blog, or app."
-    ...
-```
-
-However, it does aggregate a bit information (only a little), primarily object status. In another
-word, the CRD is mainly used to display application-level information.
-
-## (deprecated) k8s-appcontroller
-
-*Date: 09/12/2019*
-
-[k8s-AppController](https://github.com/Mirantis/k8s-AppController/) is a *deprecated* project from
-mirantis for managing complext deployment. The core datastructure is `Dependency` and `Definition`.
-To some extend, the project is not a real application controller, but rather a workflow controller.
-
-Dependency is used to define application dependencies, e.g. following yaml claims the dependency
-between `pod/eventually-alive-pod` and `job/test-job`.
-
-```yaml
-apiVersion: appcontroller.k8s/v1alpha1
-kind: Dependency
-metadata:
-  name: dependency-1
-parent: pod/eventually-alive-pod
-child: job/test-job
-```
-
-To control startup sequence, we need to wrap native Kubernetes resources into `Definition`, e.g.
-the following command convert native job resource into definition.
-
-```yaml
-$ cat job.yaml | docker run -i --rm mirantis/k8s-appcontroller:latest kubeac wrap
-apiVersion: appcontroller.k8s/v1alpha1
-kind: Definition
-metadata:
-  name: job-pi
-job:
-  apiVersion: batch/v1
-  kind: Job
-  metadata:
-    name: pi
-  spec:
-    template:
-      metadata:
-        name: pi
-      spec:
-        containers:
-        - name: pi
-          image: perl:5.28-slim
-          command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
-        restartPolicy: Never
-```
-
-# Developer
-
-## draft
-
-*Date: 06/06/2017, no release*
-
-[draft](https://github.com/Azure/draft) helps developers containerize applications, and helps with
-development cycles, i.e. debug in local development then deploy applications to kubernetes. A typical
-workflow:
-- `draft create` to create containerized applications based on so-called packs
-- `draft up` to deploy applications to kubernetes
-
-draft has a server component running inside kubernetes, and a local daemon to interact with the
-server (if configured to watch chanages). Once code changes, the daemon will send changes to server
-component. The server component will build the docker image and pushes the image to a registry, as
-well as instructing helm to install the Helm chart.
-
-*References*
-
-- http://blog.kubernetes.io/2017/05/draft-kubernetes-container-development.html
-- [draft design doc](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/design.md)
-- [draft installation](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/install.md)
-- [draft getting started](https://github.com/Azure/draft/blob/3fad7ef57ce9ed198649bef38023be3860792d24/docs/getting-started.md)
-
-## codegen
-
-link: [codegen](./codegen)
-
-## metacontroller
-
-*Date: 06/01/2018*
-
-[Metacontroller](https://github.com/GoogleCloudPlatform/metacontroller) is a controller for controller;
-developyer only needs to write hooks for processing registered events (with CRDs), and metacontroller
-handles the rest.
-
-# Templating & Packaging
-
-## helm
-
-Helm is a tool for managing Kubernetes charts. Charts are packages of pre-configured Kubernetes
-resources.
-
-**Local Development**
-
-- switch to helm repository and `make bootstrap` to install tools and vendors
-- run `make build` to build binary
-- run `./bin/tilter` to run a local tilter server which will talk to kubernetes cluster defined in ~/.kube/config
-- run `export HELM_HOST=localhost:44134` to tell helm client to talk to this local tilter server
-- use `./bin/helm` to start helm client
-
-To test without actually installing chart, use `--dry-run` flag.
-
-**RBAC for Tiler**
-
-```bash
-kubectl create serviceaccount --namespace kube-system tiller
-kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
-kubectl patch deploy --namespace kube-system tiller-deploy -p '{"spec":{"template":{"spec":{"serviceAccount":"tiller"}}}}'
-```
-
-**Related Projects**
-
-- https://docs.fluxcd.io/projects/helm-operator/en/stable/
-
-## kustomize
-
-link: [kustomize](./kustomize)
-
-## kpt
-
-*Date: 04/13/2020, v0.12.0*
-
-[kpt](https://googlecontainertools.github.io/kpt/) is a tool to fetch, display, customize, update,
-validate and apply Kubernetes configurations. It is based Git & YAML, which means it works with
-existing tools, framework and platforms, namely helm, kustomize, etc.
-
-The core commands in kpt include:
-- `kpt pkg`: fetch and update configuration using Git and YAML
-- `kpt cfg`: display and modify configuration in commadn line
-- `kpt live`: next-generation of kubectl apply
-- `kpt fn`: functions to generate, transform and validate configuration
-
-Usage workflow for packaging `kpt pkg`:
-1. Fetch package: `kpt pkg get $REPO/package-examples/helloworld-set@v0.3.0 helloworld`
-1. Make local changes and commit
-1. Merge upstream changes: `kpt pkg update helloworld@v0.5.0 --strategy=resource-merge`
-1. Resolve local conflicts
-
-Usage for `kpt fun`, e.g. run a function to apply labels to all namespaces for resources under `.`:
-```
-kpt fn run --image gcr.io/kpt-functions/label-namespace . -- label_name=color label_value=orange
-```
-
-Note any solution which emits configuration can also generate kpt packages (because they are just
-configuration); therefore, kpt can be treated as a higher-level package manager on top of
-configuration management tools like helm and kustomize.
-
-## (deprecated) ksonnet
-
-*Date: 02/22/2018, v0.8.0*
-
-Ksonnet has relatively good documentation, read following docs in order:
-- https://ksonnet.io/docs/tutorial
-- https://ksonnet.io/docs/concepts
-- https://ksonnet.io/tour/welcome
-
-*Reference*
-
-- https://stackoverflow.com/questions/48867912/draft-vs-helm-vs-ksonnet-complementing-or-replacing
-
-# References
-
-- https://blog.openshift.com/kubernetes-state-app-templating/
-
-**TODO**
-
-- kube-lego (TODO: basic, P1)
-  https://github.com/jetstack/kube-lego
-- smith (TODO: basic, P1)
-  https://github.com/atlassian/smith
-- kuberesolver (TODO: basic, P1)
-  https://github.com/sercand/kuberesolver
-- rktlet (TODO: basic, P2)
-  Bridge kubelet cri and rkt.
-- kubegen (TODO: basic, P2)
-  https://github.com/errordeveloper/kubegen
-- brigade (TODO: basic, P2)
+- [introduction and comparison to other similar projects](https://www.mirantis.com/blog/virtlet-run-vms-as-kubernetes-pods/)
+- [virtlet architecture](https://github.com/Mirantis/virtlet/blob/v1.4.0/docs/architecture.md)
+- [virtlet deployment](https://github.com/Mirantis/virtlet/blob/v1.4.0/deploy/real-cluster.md)
